@@ -1,0 +1,85 @@
+# Hardware-free demo with an intentionally flexible five-channel layout.
+project:
+  output_root: ../runs/fake_demo
+  session_name: fake_sleep_demo
+  mouse_ids:
+    - Mouse01
+    - Mouse02
+
+acquisition:
+  backend: fake
+  device: synthetic
+  sample_rate_hz: 500
+  block_duration_s: 0.1
+  duration_s: 20
+  terminal_config: DIFF
+  input_range_v: [-10.0, 10.0]
+  read_timeout_s: 10.0
+  start_trigger:
+    enabled: false
+    source: ""
+    edge: rising
+  channels:
+    - name: Mouse01_EEG
+      mouse_id: Mouse01
+      role: EEG
+      physical_channel: ai0
+      enabled: true
+      amplifier_gain: 1000
+      color: "#20A4F3"
+    - name: Mouse01_EMG
+      mouse_id: Mouse01
+      role: EMG
+      physical_channel: ai1
+      enabled: true
+      amplifier_gain: 1000
+      color: "#F26430"
+    - name: Mouse02_EEG
+      mouse_id: Mouse02
+      role: EEG
+      physical_channel: ai2
+      enabled: true
+      amplifier_gain: 1000
+      color: "#8E5BD9"
+    - name: Mouse02_EMG
+      mouse_id: Mouse02
+      role: EMG
+      physical_channel: ai3
+      enabled: true
+      amplifier_gain: 1000
+      color: "#32A852"
+    - name: Thermal_SYNC
+      role: SYNC
+      physical_channel: ai4
+      enabled: true
+      amplifier_gain: 1
+      color: "#E6B800"
+
+preview:
+  enabled: true
+  history_s: 10
+  refresh_hz: 10
+  display_units: input_uv
+  auto_scale: true
+  notch_hz: 50
+  notch_q: 30
+  filter_display_only: true
+  eeg_bandpass_hz: [0.5, 45]
+  emg_bandpass_hz: [10, 200]
+  window_width: 1200
+  window_height: 720
+
+storage:
+  flush_interval_s: 0.5
+  hdf5_compression: lzf
+  csv_enabled: true
+  csv_decimation: 10
+
+sync:
+  control_dir: null
+  parent_session_dir: null
+  analog_threshold_v: 2.5
+  analog_edge: rising
+  analog_start_match_enabled: false
+  analog_start_match_channel: Thermal_SYNC
+  analog_start_match_window_s: 1.0
