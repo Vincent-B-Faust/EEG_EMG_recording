@@ -6,19 +6,55 @@
 
 ## 快速开始
 
-本项目与 Thermocamera 项目共用 conda 环境 `thermocamera_public`，不另建环境。
+本项目默认优先复用 Thermocamera 的 conda 环境 `thermocamera_public`。该环境可以位于任意盘；若未找到，安装器会在本项目所在盘创建独立环境，不再假定 Conda 或环境位于 `C:`。
 
-1. 双击 `install_shared_env.cmd`，将本项目及 NI/test 依赖安装到共享环境。
+1. 双击 `install_environment.cmd`（旧名称 `install_shared_env.cmd` 仍可用），自动寻找或创建环境并安装 NI/test 依赖。
 2. 连接 USB-6001，在 NI MAX 中确认设备可见。
 3. 双击 `list_ni_devices.cmd`，确认输出中包含 USB-6001 和 `Dev*/ai0..ai7`。
 4. 按真实接线修改 `configs/ni_usb6001_dam50.yaml`。
-5. 双击 `start_gui.cmd`，在 GUI 中检查通道、增益、采样率和预览后开始记录。
+5. 双击 `start_gui.cmd`，在 GUI 中检查通道、逐通道放大器参数、采样率和预览后开始记录。
 
 没有采集卡时，可双击 `run_fake_demo.cmd`。它会生成 20 秒、5 路合成 EEG/EMG/SYNC 数据并显示实时预览。也可指定时长，例如：
 
 ```cmd
 run_fake_demo.cmd 60
 ```
+
+## 环境发现与独立安装
+
+`start_gui.cmd`、`run_fake_demo.cmd` 和 `list_ni_devices.cmd` 使用同一个 `environment_bootstrap.cmd`。启动器按以下顺序查找：
+
+1. `environment.local.cmd` 或同名环境变量中指定的绝对路径；
+2. 当前激活环境、`PATH`、Conda 注册环境列表及 `%USERPROFILE%\.conda\environments.txt`；
+3. 所有已挂载盘符下常见的 Miniconda/Anaconda 安装位置；
+4. 名为 `thermocamera_public` 的已注册环境；
+5. 项目内 `.runtime\envs\eeg_emg_recording` 独立环境。
+
+默认 `auto` 模式优先共享环境。共享环境不存在时，如果发现 Conda，就按绝对 prefix 创建独立 Conda 环境；只有普通 Python 3.10+ 时则创建 `venv`。首次启动若依赖缺失会自动执行项目安装。`.runtime` 和本机配置均已被 Git 忽略。
+
+双击 `check_environment.cmd` 可查看发现的 Conda、最终环境、Python 路径及依赖状态；机器可读诊断为：
+
+```cmd
+environment_bootstrap.cmd doctor --json
+```
+
+需要覆盖默认行为时，将 `environment.local.cmd.example` 另存为 `environment.local.cmd` 并设置所需变量。路径都接受任意盘绝对路径：
+
+```cmd
+set "EEG_EMG_ENV_MODE=auto"
+set "EEG_EMG_CONDA_EXE=<conda-installation>\Scripts\conda.exe"
+set "EEG_EMG_ENV_PREFIX=<existing-environment>"
+set "EEG_EMG_STANDALONE_PREFIX=<environment-parent>\eeg_emg_recording"
+set "EEG_EMG_ENV_SEARCH_ROOTS=<first-root>;<second-root>"
+```
+
+`EEG_EMG_ENV_MODE` 可为：
+
+- `auto`：优先共享环境，缺失或 Python 版本过旧时使用独立环境；
+- `shared`：必须找到共享环境或 `EEG_EMG_ENV_PREFIX`，否则报错；
+- `standalone`：始终使用项目独立环境。
+
+若 Python 和 Conda 都没有加入 `PATH`，可额外设置 `EEG_EMG_BOOTSTRAP_PYTHON`。完整变量及注释见 `environment.local.cmd.example`。启动器不会递归扫描整块数据盘；非标准目录应使用显式路径或 `EEG_EMG_ENV_SEARCH_ROOTS`，避免启动时遍历大量实验数据。
 
 ## 硬件关系
 
@@ -63,8 +99,15 @@ DAM50 的生物信号输入本身是差分输入。USB-6001 的 DIFF 是对 DAM5
 `hardware_lowpass_hz` 与对应 DAM50 面板完全一致，并填写
 `amplifier_serial` 以便追溯。
 
-- HDF5 永远保存 DAM50 的原始输出电压，单位 V。
-- 预览选择 `input_uv` 时，显示值为 `output_voltage_v * 1e6 / amplifier_gain`。
+- GUI 每个通道右侧的 `Amplifier...` 可录入型号、序列号、真实增益、耦合模式、
+  高/低通、硬件滤波/陷波状态、该通道的 DAQ 量程覆盖、确认状态及备注。
+- 这些项目只记录用户已经在硬件上完成的设置；程序不会控制或改变 DAM50 面板。
+- 修改增益或硬件滤波参数会自动清除“已对照硬件确认”状态，需重新核对后勾选。
+- HDF5 永远只保存 NI 在 DAM50 输出端测得的原始电压，数据集为
+  `/signals/output_voltage_v`，单位 V。
+- 预览选择 `input_uv` 时，显示的是明确标记为 derived 的输入端估算值：
+  `derived_input_uv = output_voltage_v * 1e6 / amplifier_gain`。该值不会替换原始电压，
+  也不会作为第二份信号数据写入 HDF5。
 - DAM50 官方输出摆幅约为 ±8 V，因此默认 NI 输入范围使用 `[-10, 10] V`。
 - EEG 常需保留慢波，WPI 手册建议慢信号使用较低的 LOW FILTER；EMG 可使用另一台 DAM50 独立设置硬件滤波。
 - 软件中的 notch/bandpass 默认只影响预览，不会改变保存的原始数据。
@@ -86,12 +129,32 @@ acquisition:
       physical_channel: ai0
       enabled: true
       amplifier_gain: 1000
+      amplifier_model: WPI DAM50
+      amplifier_serial: DAM50-001
+      amplifier_mode: AC
+      hardware_filter_enabled: true
+      hardware_highpass_hz: 0.1
+      hardware_lowpass_hz: 1000
+      hardware_notch_enabled: false
+      hardware_notch_hz: null
+      amplifier_settings_verified: true
+      amplifier_notes: Checked against the front panel before recording
     - name: Mouse01_EMG
       mouse_id: Mouse01
       role: EMG
       physical_channel: ai1
       enabled: true
       amplifier_gain: 1000
+      amplifier_model: WPI DAM50
+      amplifier_serial: DAM50-002
+      amplifier_mode: AC
+      hardware_filter_enabled: true
+      hardware_highpass_hz: 10
+      hardware_lowpass_hz: 1000
+      hardware_notch_enabled: false
+      hardware_notch_hz: null
+      amplifier_settings_verified: true
+      amplifier_notes: Checked against the front panel before recording
 ```
 
 支持的常用 `role` 包括 `EEG`、`EMG`、`EOG`、`ECG`、`SYNC` 和 `AUX`。名称和物理通道在启用通道中必须唯一。GUI 可直接添加 EEG/EMG 行；其他角色可在 YAML 中配置。
@@ -108,8 +171,14 @@ acquisition:
 | `terminal_config` | USB-6001 默认使用 `DIFF` |
 | `input_range_v` | NI 端电压量程，默认覆盖 DAM50 的 ±8 V 输出 |
 | `amplifier_gain` | 对应 DAM50 的真实硬件增益 |
-| `amplifier_mode` | DAM50 的 AC/DC 模式 |
+| `amplifier_model` / `amplifier_serial` | 放大器型号和可追溯序列号/资产编号 |
+| `amplifier_mode` | 放大器的耦合/模式，可为 `AC`、`DC`、`UNKNOWN` 或 `OTHER` |
+| `hardware_filter_enabled` | 硬件滤波是否启用；不代表预览软件滤波 |
 | `hardware_highpass_hz` / `hardware_lowpass_hz` | DAM50 面板滤波设置 |
+| `hardware_notch_enabled` / `hardware_notch_hz` | 外置或其他型号放大器的硬件陷波状态；DAM50 未使用时保持 false/null |
+| `amplifier_settings_verified` | 是否已由用户对照真实硬件确认 |
+| `amplifier_notes` | 接线、旋钮位置、外置滤波器等自由备注 |
+| 通道级 `terminal_config` / `input_min_v` / `input_max_v` | 可选的 NI 通道覆盖；留空继承 acquisition 全局设置 |
 | `storage.csv_enabled` | 记录时同步输出降采样 CSV |
 | `storage.csv_decimation` | CSV 每隔多少个原始样本写一行 |
 
@@ -117,14 +186,14 @@ acquisition:
 
 ## 独立 CLI
 
-安装后可在 `thermocamera_public` 环境中运行：
+推荐通过统一引导器运行 CLI，这样环境位于其他盘或使用独立环境时命令不变：
 
 ```cmd
-conda run --no-capture-output -n thermocamera_public eeg-emg-recording list-devices
-conda run --no-capture-output -n thermocamera_public eeg-emg-recording validate --config configs\ni_usb6001_dam50.yaml
-conda run --no-capture-output -n thermocamera_public eeg-emg-recording record --config configs\ni_usb6001_dam50.yaml
-conda run --no-capture-output -n thermocamera_public eeg-emg-recording inspect --session D:\path\to\session
-conda run --no-capture-output -n thermocamera_public eeg-emg-recording export-csv --session D:\path\to\session --decimation 10
+environment_bootstrap.cmd run -- -m eeg_emg_recording list-devices
+environment_bootstrap.cmd run -- -m eeg_emg_recording validate --config configs\ni_usb6001_dam50.yaml
+environment_bootstrap.cmd run -- -m eeg_emg_recording record --config configs\ni_usb6001_dam50.yaml
+environment_bootstrap.cmd run -- -m eeg_emg_recording inspect --session D:\path\to\session
+environment_bootstrap.cmd run -- -m eeg_emg_recording export-csv --session D:\path\to\session --decimation 10
 ```
 
 `record` 可用 `--duration-s`、`--until-stop`、`--out-dir`、`--session-dir`、`--preview/--no-preview`、`--fake`、`--control-dir` 和 `--parent-session` 覆盖 YAML。`--until-stop` 会忽略 YAML 中的固定时长，适合由热像或总控决定结束时刻；`--session-dir` 指定的目录必须为空。
@@ -209,15 +278,17 @@ session_YYYYMMDD_HHMMSS_<mouse>_<id>/
 ```
 
 `signals.h5` 数据集为 `/signals/output_voltage_v`，形状是 `[sample, channel]`，
-类型为 little-endian float32。通道顺序与 `metadata.json` 和
-`config_used.yaml` 一致。NI 读取运行在独立采集线程，并配置约 60 秒主机缓冲；
+类型为 little-endian float32。它只包含 DAQ 原始输出端电压；数据集属性和
+`/metadata/amplifiers` 保存单位、换算公式及逐通道人工录入的放大器参数，但不保存派生
+输入端信号。相同参数也会写入 `metadata.json` 和完整展开的 `config_used.yaml`。
+通道顺序在三者中一致。NI 读取运行在独立采集线程，并配置约 60 秒主机缓冲；
 HDF5 用 `committed_samples` 标记已提交边界，检查和导出会忽略异常中断留下的未提交尾部。
 CSV 仅用于交换或快速检查，不建议代替 HDF5 作为主数据。
 
 ## 测试
 
 ```cmd
-conda run --no-capture-output -n thermocamera_public python -m pytest -q
+environment_bootstrap.cmd run -- -m pytest -q
 ```
 
 测试覆盖：
@@ -228,3 +299,5 @@ conda run --no-capture-output -n thermocamera_public python -m pytest -q
 - 外部 control event 与正常 stop
 - 在线降采样 CSV 和离线 HDF5 导出
 - control event 优先及 wall-clock fallback 对齐
+- 任意路径共享环境发现、显式路径覆盖及项目独立环境回退
+- 所有 Windows 入口统一使用环境引导器且不含固定盘符/用户名

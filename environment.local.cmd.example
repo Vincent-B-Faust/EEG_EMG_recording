@@ -1,0 +1,21 @@
+@echo off
+rem Copy this file to environment.local.cmd and uncomment only what is needed.
+rem All values may also be set as normal Windows environment variables.
+
+rem auto: prefer thermocamera_public, then create/use a project-local environment.
+rem shared: require thermocamera_public (or EEG_EMG_ENV_PREFIX).
+rem standalone: always create/use the independent project environment.
+rem set "EEG_EMG_ENV_MODE=auto"
+
+rem Explicit paths override automatic discovery. Do not include conda.exe in ENV_PREFIX.
+rem set "EEG_EMG_CONDA_EXE=<conda-installation>\Scripts\conda.exe"
+rem set "EEG_EMG_ENV_PREFIX=<existing-environment>"
+rem set "EEG_EMG_STANDALONE_PREFIX=<environment-parent>\eeg_emg_recording"
+
+rem Additional parent directories to inspect, separated by semicolons.
+rem set "EEG_EMG_ENV_SEARCH_ROOTS=<first-root>;<second-root>"
+
+rem Used only to run the standard-library bootstrap before an environment is selected.
+rem set "EEG_EMG_BOOTSTRAP_PYTHON=<python-installation>\python.exe"
+rem set "EEG_EMG_SHARED_ENV_NAME=thermocamera_public"
+rem set "EEG_EMG_PYTHON_VERSION=3.10"
