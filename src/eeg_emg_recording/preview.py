@@ -174,7 +174,7 @@ def display_values(
 ) -> tuple[np.ndarray, str]:
     values = np.asarray(output_voltage_v, dtype=np.float64)
     if config.preview.display_units == "input_uv":
-        return values * channel.input_uv_per_output_v, "uV"
+        return values * channel.input_uv_per_output_v, "uV (derived)"
     return values, "V"
 
 

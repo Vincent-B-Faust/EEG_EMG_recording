@@ -167,6 +167,25 @@ class RecorderGui:
         ttk.Button(channel_header, text="Remove", command=self._remove_channel).pack(side="right", padx=(4, 0))
         self.channel_frame = ttk.Frame(parent)
         self.channel_frame.pack(fill="both", expand=True, padx=(0, 12))
+        columns = ttk.Frame(self.channel_frame)
+        columns.pack(fill="x", pady=(0, 2))
+        for column, (label, width) in enumerate(
+            (
+                ("", 2),
+                ("Role", 6),
+                ("Mouse", 9),
+                ("Name", 13),
+                ("NI input", 9),
+                ("Gain", 7),
+                ("", 11),
+            )
+        ):
+            ttk.Label(columns, text=label, width=width).grid(
+                row=0,
+                column=column,
+                padx=2,
+                sticky="w",
+            )
 
     def _build_preview(self, parent: Any) -> None:
         ttk = self.ttk
@@ -501,14 +520,42 @@ class _ChannelRow:
         import tkinter as tk
         from tkinter import ttk
 
+        self.tk = tk
+        self.ttk = ttk
         self.frame = ttk.Frame(parent)
-        self._original = channel
         self.enabled = tk.BooleanVar(value=channel.enabled)
         self.mouse = tk.StringVar(value=channel.mouse_id)
         self.role = tk.StringVar(value=channel.role)
         self.name = tk.StringVar(value=channel.name)
         self.physical = tk.StringVar(value=channel.physical_channel)
         self.gain = tk.StringVar(value=f"{channel.amplifier_gain:g}")
+        self.amplifier_model = tk.StringVar(value=channel.amplifier_model)
+        self.amplifier_serial = tk.StringVar(value=channel.amplifier_serial)
+        self.amplifier_mode = tk.StringVar(value=channel.amplifier_mode)
+        self.hardware_highpass_hz = tk.StringVar(
+            value=_optional_number_text(channel.hardware_highpass_hz)
+        )
+        self.hardware_lowpass_hz = tk.StringVar(
+            value=_optional_number_text(channel.hardware_lowpass_hz)
+        )
+        self.hardware_filter_enabled = tk.BooleanVar(
+            value=channel.hardware_filter_enabled
+        )
+        self.hardware_notch_enabled = tk.BooleanVar(
+            value=channel.hardware_notch_enabled
+        )
+        self.hardware_notch_hz = tk.StringVar(
+            value=_optional_number_text(channel.hardware_notch_hz)
+        )
+        self.amplifier_settings_verified = tk.BooleanVar(
+            value=channel.amplifier_settings_verified
+        )
+        self.amplifier_notes = channel.amplifier_notes
+        self.terminal_config = tk.StringVar(value=channel.terminal_config or "")
+        self.input_min_v = tk.StringVar(value=_optional_number_text(channel.input_min_v))
+        self.input_max_v = tk.StringVar(value=_optional_number_text(channel.input_max_v))
+        self.color = channel.color
+        self.summary_var = tk.StringVar()
         ttk.Checkbutton(self.frame, variable=self.enabled).grid(row=0, column=0, padx=(0, 3))
         ttk.Combobox(
             self.frame,
@@ -521,6 +568,248 @@ class _ChannelRow:
         ttk.Entry(self.frame, textvariable=self.name, width=13).grid(row=0, column=3, padx=2)
         ttk.Entry(self.frame, textvariable=self.physical, width=9).grid(row=0, column=4, padx=2)
         ttk.Entry(self.frame, textvariable=self.gain, width=7).grid(row=0, column=5, padx=2)
+        ttk.Button(
+            self.frame,
+            text="Amplifier...",
+            command=self._edit_amplifier,
+            width=11,
+        ).grid(row=0, column=6, padx=(4, 0))
+        ttk.Label(
+            self.frame,
+            textvariable=self.summary_var,
+            foreground="#626A70",
+        ).grid(row=1, column=2, columnspan=5, padx=2, pady=(1, 3), sticky="w")
+        for variable in (
+            self.gain,
+            self.amplifier_model,
+            self.amplifier_mode,
+            self.hardware_highpass_hz,
+            self.hardware_lowpass_hz,
+            self.hardware_notch_hz,
+        ):
+            variable.trace_add("write", lambda *_args: self._update_summary())
+        for variable in (
+            self.hardware_filter_enabled,
+            self.hardware_notch_enabled,
+            self.amplifier_settings_verified,
+        ):
+            variable.trace_add("write", lambda *_args: self._update_summary())
+        for variable in (self.gain, self.physical, self.role):
+            variable.trace_add(
+                "write",
+                lambda *_args: self.amplifier_settings_verified.set(False),
+            )
+        self._update_summary()
+
+    def _edit_amplifier(self) -> None:
+        from tkinter import messagebox
+
+        tk = self.tk
+        ttk = self.ttk
+        owner = self.frame.winfo_toplevel()
+        window = tk.Toplevel(owner)
+        window.title(f"Amplifier settings - {self.name.get().strip() or 'channel'}")
+        window.transient(owner)
+        window.resizable(False, False)
+
+        text_values = {
+            "model": tk.StringVar(value=self.amplifier_model.get()),
+            "serial": tk.StringVar(value=self.amplifier_serial.get()),
+            "gain": tk.StringVar(value=self.gain.get()),
+            "mode": tk.StringVar(value=self.amplifier_mode.get()),
+            "highpass": tk.StringVar(value=self.hardware_highpass_hz.get()),
+            "lowpass": tk.StringVar(value=self.hardware_lowpass_hz.get()),
+            "notch_hz": tk.StringVar(value=self.hardware_notch_hz.get()),
+            "terminal": tk.StringVar(value=self.terminal_config.get() or "INHERIT"),
+            "input_min": tk.StringVar(value=self.input_min_v.get()),
+            "input_max": tk.StringVar(value=self.input_max_v.get()),
+        }
+        filter_enabled = tk.BooleanVar(value=self.hardware_filter_enabled.get())
+        notch_enabled = tk.BooleanVar(value=self.hardware_notch_enabled.get())
+        verified = tk.BooleanVar(value=self.amplifier_settings_verified.get())
+        for variable in (
+            text_values["model"],
+            text_values["serial"],
+            text_values["gain"],
+            text_values["mode"],
+            text_values["highpass"],
+            text_values["lowpass"],
+            text_values["notch_hz"],
+            text_values["terminal"],
+            text_values["input_min"],
+            text_values["input_max"],
+            filter_enabled,
+            notch_enabled,
+        ):
+            variable.trace_add("write", lambda *_args: verified.set(False))
+
+        content = ttk.Frame(window, padding=14)
+        content.grid(row=0, column=0, sticky="nsew")
+        ttk.Label(
+            content,
+            text=(
+                "Metadata only. Enter the physical amplifier settings after adjusting "
+                "the hardware. This software does not control the DAM50, and HDF5 "
+                "always stores unmodified DAQ output volts."
+            ),
+            wraplength=520,
+            foreground="#4D5962",
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+
+        row = 1
+
+        def add_field(
+            label: str,
+            variable: Any,
+            *,
+            values: tuple[str, ...] | None = None,
+        ) -> None:
+            nonlocal row
+            ttk.Label(content, text=label).grid(row=row, column=0, sticky="w", pady=4)
+            if values is None:
+                widget = ttk.Entry(content, textvariable=variable, width=38)
+            else:
+                widget = ttk.Combobox(
+                    content,
+                    textvariable=variable,
+                    values=values,
+                    state="readonly",
+                    width=35,
+                )
+            widget.grid(row=row, column=1, sticky="ew", padx=(12, 0), pady=4)
+            row += 1
+
+        add_field("Amplifier model", text_values["model"])
+        add_field("Serial / asset ID", text_values["serial"])
+        add_field("Physical gain (x)", text_values["gain"])
+        add_field(
+            "Coupling / mode",
+            text_values["mode"],
+            values=("AC", "DC", "UNKNOWN", "OTHER"),
+        )
+        ttk.Checkbutton(
+            content,
+            text="Hardware filter enabled",
+            variable=filter_enabled,
+        ).grid(row=row, column=1, sticky="w", padx=(12, 0), pady=4)
+        row += 1
+        add_field("Hardware high-pass (Hz; blank = unknown)", text_values["highpass"])
+        add_field("Hardware low-pass (Hz; blank = unknown)", text_values["lowpass"])
+        ttk.Checkbutton(
+            content,
+            text="Hardware notch enabled",
+            variable=notch_enabled,
+        ).grid(row=row, column=1, sticky="w", padx=(12, 0), pady=4)
+        row += 1
+        add_field("Hardware notch (Hz; blank = none)", text_values["notch_hz"])
+        add_field(
+            "DAQ terminal override",
+            text_values["terminal"],
+            values=("INHERIT", "DIFF", "RSE", "NRSE", "PSEUDODIFFERENTIAL"),
+        )
+        add_field("DAQ input minimum (V; blank = global)", text_values["input_min"])
+        add_field("DAQ input maximum (V; blank = global)", text_values["input_max"])
+        ttk.Checkbutton(
+            content,
+            text="Confirmed against the physical hardware",
+            variable=verified,
+        ).grid(row=row, column=1, sticky="w", padx=(12, 0), pady=4)
+        row += 1
+        ttk.Label(content, text="Notes").grid(row=row, column=0, sticky="nw", pady=4)
+        notes = tk.Text(content, width=38, height=4, wrap="word")
+        notes.insert("1.0", self.amplifier_notes)
+        notes.grid(row=row, column=1, sticky="ew", padx=(12, 0), pady=4)
+        row += 1
+
+        buttons = ttk.Frame(content)
+        buttons.grid(row=row, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        ttk.Button(buttons, text="Cancel", command=window.destroy).pack(
+            side="right",
+            padx=(6, 0),
+        )
+
+        def save_and_close() -> None:
+            try:
+                gain = _gui_float(text_values["gain"].get(), "Physical gain")
+                highpass = _gui_optional_float(
+                    text_values["highpass"].get(),
+                    "Hardware high-pass",
+                )
+                lowpass = _gui_optional_float(
+                    text_values["lowpass"].get(),
+                    "Hardware low-pass",
+                )
+                notch_hz = _gui_optional_float(
+                    text_values["notch_hz"].get(),
+                    "Hardware notch",
+                )
+                input_min = _gui_optional_float(
+                    text_values["input_min"].get(),
+                    "DAQ input minimum",
+                )
+                input_max = _gui_optional_float(
+                    text_values["input_max"].get(),
+                    "DAQ input maximum",
+                )
+                if gain <= 0:
+                    raise ValueError("Physical gain must be greater than zero")
+                if highpass is not None and highpass < 0:
+                    raise ValueError("Hardware high-pass cannot be negative")
+                if lowpass is not None and lowpass <= 0:
+                    raise ValueError("Hardware low-pass must be greater than zero")
+                if (
+                    filter_enabled.get()
+                    and highpass is not None
+                    and lowpass is not None
+                    and highpass >= lowpass
+                ):
+                    raise ValueError("Hardware high-pass must be below low-pass")
+                if notch_hz is not None and notch_hz <= 0:
+                    raise ValueError("Hardware notch must be greater than zero")
+                if notch_enabled.get() and notch_hz is None:
+                    raise ValueError(
+                        "Enter the hardware notch frequency or disable hardware notch"
+                    )
+                if (input_min is None) != (input_max is None):
+                    raise ValueError(
+                        "Set both DAQ input minimum and maximum, or leave both blank"
+                    )
+                if (
+                    input_min is not None
+                    and input_max is not None
+                    and input_min >= input_max
+                ):
+                    raise ValueError("DAQ input minimum must be below maximum")
+            except ValueError as exc:
+                messagebox.showerror("Amplifier settings", str(exc), parent=window)
+                return
+
+            self.amplifier_model.set(text_values["model"].get().strip())
+            self.amplifier_serial.set(text_values["serial"].get().strip())
+            self.gain.set(f"{gain:g}")
+            self.amplifier_mode.set(text_values["mode"].get().strip().upper())
+            self.hardware_filter_enabled.set(bool(filter_enabled.get()))
+            self.hardware_highpass_hz.set(_optional_number_text(highpass))
+            self.hardware_lowpass_hz.set(_optional_number_text(lowpass))
+            self.hardware_notch_enabled.set(bool(notch_enabled.get()))
+            self.hardware_notch_hz.set(_optional_number_text(notch_hz))
+            self.terminal_config.set(
+                ""
+                if text_values["terminal"].get() == "INHERIT"
+                else text_values["terminal"].get()
+            )
+            self.input_min_v.set(_optional_number_text(input_min))
+            self.input_max_v.set(_optional_number_text(input_max))
+            self.amplifier_settings_verified.set(bool(verified.get()))
+            self.amplifier_notes = notes.get("1.0", "end-1c").strip()
+            self._update_summary()
+            window.destroy()
+
+        ttk.Button(buttons, text="Apply", command=save_and_close).pack(side="right")
+        content.columnconfigure(1, weight=1)
+        window.protocol("WM_DELETE_WINDOW", window.destroy)
+        window.wait_visibility()
+        window.grab_set()
 
     def to_dict(self) -> dict[str, Any]:
         data = {
@@ -529,27 +818,87 @@ class _ChannelRow:
             "role": self.role.get().strip().upper(),
             "name": self.name.get().strip(),
             "physical_channel": self.physical.get().strip(),
-            "amplifier_gain": float(self.gain.get()),
-            "amplifier_model": self._original.amplifier_model,
-            "amplifier_serial": self._original.amplifier_serial,
-            "amplifier_mode": self._original.amplifier_mode,
+            "amplifier_gain": _gui_float(self.gain.get(), "Physical gain"),
+            "amplifier_model": self.amplifier_model.get().strip(),
+            "amplifier_serial": self.amplifier_serial.get().strip(),
+            "amplifier_mode": self.amplifier_mode.get().strip().upper(),
+            "hardware_filter_enabled": bool(self.hardware_filter_enabled.get()),
+            "hardware_highpass_hz": _gui_optional_float(
+                self.hardware_highpass_hz.get(),
+                "Hardware high-pass",
+            ),
+            "hardware_lowpass_hz": _gui_optional_float(
+                self.hardware_lowpass_hz.get(),
+                "Hardware low-pass",
+            ),
+            "hardware_notch_enabled": bool(self.hardware_notch_enabled.get()),
+            "hardware_notch_hz": _gui_optional_float(
+                self.hardware_notch_hz.get(),
+                "Hardware notch",
+            ),
+            "amplifier_settings_verified": bool(
+                self.amplifier_settings_verified.get()
+            ),
+            "amplifier_notes": self.amplifier_notes,
+            "terminal_config": self.terminal_config.get().strip() or None,
+            "input_min_v": _gui_optional_float(
+                self.input_min_v.get(),
+                "DAQ input minimum",
+            ),
+            "input_max_v": _gui_optional_float(
+                self.input_max_v.get(),
+                "DAQ input maximum",
+            ),
         }
-        if self._original.hardware_highpass_hz is not None:
-            data["hardware_highpass_hz"] = self._original.hardware_highpass_hz
-        if self._original.hardware_lowpass_hz is not None:
-            data["hardware_lowpass_hz"] = self._original.hardware_lowpass_hz
-        if self._original.color:
-            data["color"] = self._original.color
-        if self._original.terminal_config:
-            data["terminal_config"] = self._original.terminal_config
-        if self._original.input_min_v is not None:
-            data["input_min_v"] = self._original.input_min_v
-        if self._original.input_max_v is not None:
-            data["input_max_v"] = self._original.input_max_v
+        if self.color:
+            data["color"] = self.color
         return data
+
+    def _update_summary(self) -> None:
+        model = self.amplifier_model.get().strip() or "Unspecified amplifier"
+        mode = self.amplifier_mode.get().strip() or "UNKNOWN"
+        gain = self.gain.get().strip() or "?"
+        if self.hardware_filter_enabled.get():
+            highpass = self.hardware_highpass_hz.get().strip() or "?"
+            lowpass = self.hardware_lowpass_hz.get().strip() or "?"
+            filter_text = f"filter {highpass}-{lowpass} Hz"
+        else:
+            filter_text = "filter bypassed"
+        notch_text = (
+            f", notch {self.hardware_notch_hz.get().strip() or '?'} Hz"
+            if self.hardware_notch_enabled.get()
+            else ""
+        )
+        verified = (
+            "confirmed"
+            if self.amplifier_settings_verified.get()
+            else "not confirmed"
+        )
+        self.summary_var.set(
+            f"{model} | {mode} | {gain}x | {filter_text}{notch_text} | {verified}"
+        )
 
     def destroy(self) -> None:
         self.frame.destroy()
+
+
+def _optional_number_text(value: float | None) -> str:
+    return "" if value is None else f"{value:g}"
+
+
+def _gui_float(value: str, label: str) -> float:
+    try:
+        result = float(str(value).strip())
+    except ValueError as exc:
+        raise ValueError(f"{label} must be a number") from exc
+    if not np.isfinite(result):
+        raise ValueError(f"{label} must be finite")
+    return result
+
+
+def _gui_optional_float(value: str, label: str) -> float | None:
+    text = str(value).strip()
+    return None if not text else _gui_float(text, label)
 
 
 def _tk_value_to_y(value: float, low: float, high: float, top: float, bottom: float) -> float:

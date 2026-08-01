@@ -19,6 +19,7 @@ from .models import ChannelConfig, RecordingConfig, SourceTiming
 
 
 SCHEMA = "aki_eeg_emg_recording_v1"
+AMPLIFIER_METADATA_SCHEMA = "aki_amplifier_settings_v1"
 
 
 class StorageCloseError(RuntimeError):
@@ -55,6 +56,7 @@ class SessionWriter:
         self.session_dir.mkdir(parents=True, exist_ok=True)
         self.timing = timing
         self.sample_rate_hz = float(timing.sample_rate_hz)
+        amplifier_settings = self._amplifier_settings()
         try:
             self._write_config_snapshot()
             chunk_rows = max(
@@ -72,54 +74,101 @@ class SessionWriter:
                 compression=self.config.storage.hdf5_compression,
                 shuffle=bool(self.config.storage.hdf5_compression),
             )
+            self._signals.attrs["units"] = "V"
+            self._signals.attrs["signal_reference"] = "amplifier_output"
+            self._signals.attrs["is_raw_daq_measurement"] = True
+            self._signals.attrs["derived_input_values_stored"] = False
+            self._signals.attrs["derived_input_formula"] = (
+                "derived_input_uv = output_voltage_v * 1e6 / amplifier_gain"
+            )
+            metadata_group = self._h5.create_group("metadata")
+            amplifier_group = metadata_group.create_group("amplifiers")
+            amplifier_group.attrs["schema"] = AMPLIFIER_METADATA_SCHEMA
+            amplifier_group.attrs["settings_source"] = "manual_user_entry"
+            amplifier_group.attrs["configuration_json"] = json.dumps(
+                amplifier_settings,
+                ensure_ascii=False,
+            )
             self._h5.attrs["schema"] = SCHEMA
             self._h5.attrs["sample_rate_hz"] = self.sample_rate_hz
             self._h5.attrs["requested_sample_rate_hz"] = self.config.acquisition.sample_rate_hz
             self._h5.attrs["start_wall_ns"] = timing.start_wall_ns
             self._h5.attrs["start_monotonic_ns"] = timing.start_monotonic_ns
             self._h5.attrs["channels_json"] = json.dumps([channel.to_dict() for channel in self.channels], ensure_ascii=False)
+            self._h5.attrs["amplifier_settings_schema"] = AMPLIFIER_METADATA_SCHEMA
+            self._h5.attrs["amplifier_settings_json"] = json.dumps(
+                amplifier_settings,
+                ensure_ascii=False,
+            )
+            self._h5.attrs["raw_signal_dataset"] = "/signals/output_voltage_v"
+            self._h5.attrs["raw_signal_units"] = "V"
+            self._h5.attrs["derived_input_values_stored"] = False
             self._h5.attrs["samples_written"] = 0
             self._h5.attrs["committed_samples"] = 0
             self._open_block_index()
             self._open_events()
             self._open_decimated_csv()
             self._metadata = {
-            "schema": SCHEMA,
-            "status": "recording",
-            "session_dir": str(self.session_dir),
-            "start_wall_ns": timing.start_wall_ns,
-            "start_wall": timing.start_wall_ns / 1_000_000_000,
-            "start_time": _format_ns(timing.start_wall_ns),
-            "start_monotonic_ns": timing.start_monotonic_ns,
-            "sample_rate_hz": self.sample_rate_hz,
-            "block_size": self.config.acquisition.block_size,
-            "channels": [channel.to_dict() for channel in self.channels],
-            "source": source_info,
-            "files": {
-                "signals_hdf5": self.h5_path.name,
-                "dataset": "/signals/output_voltage_v",
-                "block_index": self.block_index_path.name,
-                "events": self.events_path.name,
-                "decimated_csv": self.csv_path.name if self.csv_path else None,
-                "config": "config_used.yaml",
-            },
-            "samples_written": 0,
-            "blocks_written": 0,
-            "time_mapping": {
-                "sample_time_s": "sample_index / sample_rate_hz",
-                "wall_time_ns": "start_wall_ns + round(sample_index * 1e9 / sample_rate_hz)",
-                "amplifier_input_uv": "output_voltage_v * input_uv_per_output_v",
-            },
-            "parent_session_dir": str(self.config.sync.parent_session_dir) if self.config.sync.parent_session_dir else None,
-            "control_dir": str(self.config.sync.control_dir) if self.config.sync.control_dir else None,
-            "sync": {
-                "analog_threshold_v": self.config.sync.analog_threshold_v,
-                "analog_edge": self.config.sync.analog_edge,
-                "analog_start_match_enabled": self.config.sync.analog_start_match_enabled,
-                "analog_start_match_channel": self.config.sync.analog_start_match_channel,
-                "analog_start_match_window_s": self.config.sync.analog_start_match_window_s,
-            },
-        }
+                "schema": SCHEMA,
+                "status": "recording",
+                "session_dir": str(self.session_dir),
+                "start_wall_ns": timing.start_wall_ns,
+                "start_wall": timing.start_wall_ns / 1_000_000_000,
+                "start_time": _format_ns(timing.start_wall_ns),
+                "start_monotonic_ns": timing.start_monotonic_ns,
+                "sample_rate_hz": self.sample_rate_hz,
+                "block_size": self.config.acquisition.block_size,
+                "channels": [channel.to_dict() for channel in self.channels],
+                "amplifier_settings_schema": AMPLIFIER_METADATA_SCHEMA,
+                "amplifier_settings": amplifier_settings,
+                "source": source_info,
+                "files": {
+                    "signals_hdf5": self.h5_path.name,
+                    "dataset": "/signals/output_voltage_v",
+                    "block_index": self.block_index_path.name,
+                    "events": self.events_path.name,
+                    "decimated_csv": self.csv_path.name if self.csv_path else None,
+                    "config": "config_used.yaml",
+                },
+                "signal_storage": {
+                    "stored_dataset": "/signals/output_voltage_v",
+                    "stored_quantity": "unmodified DAQ measurement at amplifier output",
+                    "stored_units": "V",
+                    "derived_input_values_stored": False,
+                    "derived_input_units": "uV",
+                    "derived_input_formula": (
+                        "derived_input_uv = output_voltage_v * 1e6 / amplifier_gain"
+                    ),
+                },
+                "samples_written": 0,
+                "blocks_written": 0,
+                "time_mapping": {
+                    "sample_time_s": "sample_index / sample_rate_hz",
+                    "wall_time_ns": (
+                        "start_wall_ns + round(sample_index * 1e9 / sample_rate_hz)"
+                    ),
+                    "derived_amplifier_input_uv": (
+                        "output_voltage_v * input_uv_per_output_v"
+                    ),
+                },
+                "parent_session_dir": (
+                    str(self.config.sync.parent_session_dir)
+                    if self.config.sync.parent_session_dir
+                    else None
+                ),
+                "control_dir": (
+                    str(self.config.sync.control_dir)
+                    if self.config.sync.control_dir
+                    else None
+                ),
+                "sync": {
+                    "analog_threshold_v": self.config.sync.analog_threshold_v,
+                    "analog_edge": self.config.sync.analog_edge,
+                    "analog_start_match_enabled": self.config.sync.analog_start_match_enabled,
+                    "analog_start_match_channel": self.config.sync.analog_start_match_channel,
+                    "analog_start_match_window_s": self.config.sync.analog_start_match_window_s,
+                },
+            }
             self.flush(force=True)
         except Exception:
             self._close_resources()
@@ -338,7 +387,42 @@ class SessionWriter:
     def _write_config_snapshot(self) -> None:
         path = self.session_dir / "config_used.yaml"
         with path.open("w", encoding="utf-8", newline="\n") as handle:
-            yaml.safe_dump(self.config.raw, handle, sort_keys=False, allow_unicode=True)
+            yaml.safe_dump(
+                self.config.to_config_dict(),
+                handle,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+
+    def _amplifier_settings(self) -> list[dict[str, Any]]:
+        settings: list[dict[str, Any]] = []
+        acquisition = self.config.acquisition
+        for channel in self.channels:
+            item = channel.amplifier_metadata()
+            item.update(
+                {
+                    "physical_channel": channel.physical_channel,
+                    "signal_role": channel.role,
+                    "mouse_id": channel.mouse_id,
+                    "daq_terminal_config": (
+                        channel.terminal_config or acquisition.terminal_config
+                    ),
+                    "daq_input_range_v": [
+                        (
+                            channel.input_min_v
+                            if channel.input_min_v is not None
+                            else acquisition.input_min_v
+                        ),
+                        (
+                            channel.input_max_v
+                            if channel.input_max_v is not None
+                            else acquisition.input_max_v
+                        ),
+                    ],
+                }
+            )
+            settings.append(item)
+        return settings
 
     def _open_block_index(self) -> None:
         fields = [

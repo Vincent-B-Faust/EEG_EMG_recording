@@ -26,6 +26,16 @@ acquisition:
       physical_channel: ai0
       enabled: true
       amplifier_gain: 1000
+      amplifier_model: Synthetic DAM50
+      amplifier_serial: FAKE-EEG-01
+      amplifier_mode: AC
+      hardware_filter_enabled: true
+      hardware_highpass_hz: 0.1
+      hardware_lowpass_hz: 100
+      hardware_notch_enabled: false
+      hardware_notch_hz: null
+      amplifier_settings_verified: true
+      amplifier_notes: Fake demo metadata only
       color: "#20A4F3"
     - name: Mouse01_EMG
       mouse_id: Mouse01
@@ -33,6 +43,16 @@ acquisition:
       physical_channel: ai1
       enabled: true
       amplifier_gain: 1000
+      amplifier_model: Synthetic DAM50
+      amplifier_serial: FAKE-EMG-01
+      amplifier_mode: AC
+      hardware_filter_enabled: true
+      hardware_highpass_hz: 10
+      hardware_lowpass_hz: 200
+      hardware_notch_enabled: false
+      hardware_notch_hz: null
+      amplifier_settings_verified: true
+      amplifier_notes: Fake demo metadata only
       color: "#F26430"
     - name: Mouse02_EEG
       mouse_id: Mouse02
@@ -40,6 +60,16 @@ acquisition:
       physical_channel: ai2
       enabled: true
       amplifier_gain: 1000
+      amplifier_model: Synthetic DAM50
+      amplifier_serial: FAKE-EEG-02
+      amplifier_mode: AC
+      hardware_filter_enabled: true
+      hardware_highpass_hz: 0.1
+      hardware_lowpass_hz: 100
+      hardware_notch_enabled: false
+      hardware_notch_hz: null
+      amplifier_settings_verified: true
+      amplifier_notes: Fake demo metadata only
       color: "#8E5BD9"
     - name: Mouse02_EMG
       mouse_id: Mouse02
@@ -47,12 +77,32 @@ acquisition:
       physical_channel: ai3
       enabled: true
       amplifier_gain: 1000
+      amplifier_model: Synthetic DAM50
+      amplifier_serial: FAKE-EMG-02
+      amplifier_mode: AC
+      hardware_filter_enabled: true
+      hardware_highpass_hz: 10
+      hardware_lowpass_hz: 200
+      hardware_notch_enabled: false
+      hardware_notch_hz: null
+      amplifier_settings_verified: true
+      amplifier_notes: Fake demo metadata only
       color: "#32A852"
     - name: Thermal_SYNC
       role: SYNC
       physical_channel: ai4
       enabled: true
       amplifier_gain: 1
+      amplifier_model: Direct synthetic input
+      amplifier_serial: ""
+      amplifier_mode: OTHER
+      hardware_filter_enabled: false
+      hardware_highpass_hz: null
+      hardware_lowpass_hz: null
+      hardware_notch_enabled: false
+      hardware_notch_hz: null
+      amplifier_settings_verified: true
+      amplifier_notes: No physical amplifier in fake mode
       color: "#E6B800"
 
 preview:

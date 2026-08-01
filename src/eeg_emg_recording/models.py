@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,11 @@ class ChannelConfig:
     amplifier_mode: str = "AC"
     hardware_highpass_hz: float | None = None
     hardware_lowpass_hz: float | None = None
+    hardware_filter_enabled: bool = True
+    hardware_notch_enabled: bool = False
+    hardware_notch_hz: float | None = None
+    amplifier_settings_verified: bool = False
+    amplifier_notes: str = ""
     color: str = ""
     terminal_config: str | None = None
     input_min_v: float | None = None
@@ -41,10 +47,37 @@ class ChannelConfig:
     def input_uv_per_output_v(self) -> float:
         return 1_000_000.0 / self.amplifier_gain if self.amplifier_gain else 1_000_000.0
 
+    def to_config_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def amplifier_metadata(self) -> dict[str, Any]:
+        return {
+            "channel_name": self.name,
+            "model": self.amplifier_model,
+            "serial": self.amplifier_serial,
+            "gain": self.amplifier_gain,
+            "coupling_mode": self.amplifier_mode,
+            "hardware_filter_enabled": self.hardware_filter_enabled,
+            "hardware_highpass_hz": self.hardware_highpass_hz,
+            "hardware_lowpass_hz": self.hardware_lowpass_hz,
+            "hardware_notch_enabled": self.hardware_notch_enabled,
+            "hardware_notch_hz": self.hardware_notch_hz,
+            "settings_verified_against_hardware": self.amplifier_settings_verified,
+            "notes": self.amplifier_notes,
+            "settings_source": "manual_user_entry",
+        }
+
     def to_dict(self) -> dict[str, Any]:
-        data = asdict(self)
+        data = self.to_config_dict()
         data["input_uv_per_output_v"] = self.input_uv_per_output_v
         data["display_color"] = self.display_color
+        data["raw_output_units"] = "V"
+        data["derived_input_units"] = "uV"
+        data["derived_input_formula"] = (
+            "derived_input_uv = output_voltage_v * 1e6 / amplifier_gain"
+        )
+        data["derived_input_values_stored"] = False
+        data["amplifier_settings_source"] = "manual_user_entry"
         return data
 
 
@@ -120,8 +153,16 @@ class RecordingConfig:
     storage: StorageConfig
     sync: SyncConfig
 
+    def to_config_dict(self) -> dict[str, Any]:
+        data = deepcopy(self.raw)
+        acquisition = data.setdefault("acquisition", {})
+        acquisition["channels"] = [
+            channel.to_config_dict() for channel in self.acquisition.channels
+        ]
+        return data
+
     def to_dict(self) -> dict[str, Any]:
-        data = dict(self.raw)
+        data = self.to_config_dict()
         data["_resolved"] = {
             "config_path": str(self.config_path),
             "output_root": str(self.output_root),

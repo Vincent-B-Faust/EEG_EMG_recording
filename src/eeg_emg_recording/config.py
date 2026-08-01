@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -134,10 +135,86 @@ def validate_config(config: RecordingConfig) -> None:
             raise ValueError("Every enabled channel requires a name")
         if not channel.physical_channel:
             raise ValueError(f"Channel {channel.name!r} requires physical_channel")
-        if channel.amplifier_gain <= 0:
+        if not isfinite(channel.amplifier_gain) or channel.amplifier_gain <= 0:
             raise ValueError(f"Channel {channel.name!r} amplifier_gain must be greater than zero")
-        if channel.amplifier_mode not in {"AC", "DC"}:
-            raise ValueError(f"Channel {channel.name!r} amplifier_mode must be AC or DC")
+        if channel.amplifier_mode not in {"AC", "DC", "UNKNOWN", "OTHER"}:
+            raise ValueError(
+                f"Channel {channel.name!r} amplifier_mode must be AC, DC, UNKNOWN, or OTHER"
+            )
+        if (
+            channel.hardware_highpass_hz is not None
+            and (
+                not isfinite(channel.hardware_highpass_hz)
+                or channel.hardware_highpass_hz < 0
+            )
+        ):
+            raise ValueError(
+                f"Channel {channel.name!r} hardware_highpass_hz must be finite and "
+                "cannot be negative"
+            )
+        if (
+            channel.hardware_lowpass_hz is not None
+            and (
+                not isfinite(channel.hardware_lowpass_hz)
+                or channel.hardware_lowpass_hz <= 0
+            )
+        ):
+            raise ValueError(
+                f"Channel {channel.name!r} hardware_lowpass_hz must be finite and "
+                "greater than zero"
+            )
+        if (
+            channel.hardware_filter_enabled
+            and channel.hardware_highpass_hz is not None
+            and channel.hardware_lowpass_hz is not None
+            and channel.hardware_highpass_hz >= channel.hardware_lowpass_hz
+        ):
+            raise ValueError(
+                f"Channel {channel.name!r} hardware_highpass_hz must be below "
+                "hardware_lowpass_hz"
+            )
+        if (
+            channel.hardware_notch_hz is not None
+            and (
+                not isfinite(channel.hardware_notch_hz)
+                or channel.hardware_notch_hz <= 0
+            )
+        ):
+            raise ValueError(
+                f"Channel {channel.name!r} hardware_notch_hz must be finite and "
+                "greater than zero"
+            )
+        if channel.hardware_notch_enabled and channel.hardware_notch_hz is None:
+            raise ValueError(
+                f"Channel {channel.name!r} hardware_notch_hz is required when "
+                "hardware_notch_enabled is true"
+            )
+        if (channel.input_min_v is None) != (channel.input_max_v is None):
+            raise ValueError(
+                f"Channel {channel.name!r} input_min_v and input_max_v must be set together"
+            )
+        if (
+            channel.input_min_v is not None
+            and channel.input_max_v is not None
+            and (
+                not isfinite(channel.input_min_v)
+                or not isfinite(channel.input_max_v)
+                or channel.input_min_v >= channel.input_max_v
+            )
+        ):
+            raise ValueError(
+                f"Channel {channel.name!r} input range must be finite and "
+                "input_min_v must be below input_max_v"
+            )
+        if (
+            channel.terminal_config is not None
+            and channel.terminal_config.upper()
+            not in {"DIFF", "RSE", "NRSE", "PSEUDODIFFERENTIAL"}
+        ):
+            raise ValueError(
+                f"Channel {channel.name!r} terminal_config must be DIFF, RSE, NRSE, "
+                "or PSEUDODIFFERENTIAL"
+            )
     if acquisition.start_trigger_enabled and not acquisition.start_trigger_source:
         raise ValueError("start_trigger.source is required when the start trigger is enabled")
     if config.sync.analog_start_match_enabled:
@@ -163,7 +240,7 @@ def validate_config(config: RecordingConfig) -> None:
 def save_config(config: RecordingConfig | dict[str, Any], path: str | Path) -> Path:
     output = Path(path).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    raw = config.raw if isinstance(config, RecordingConfig) else config
+    raw = config.to_config_dict() if isinstance(config, RecordingConfig) else config
     with output.open("w", encoding="utf-8", newline="\n") as handle:
         yaml.safe_dump(raw, handle, sort_keys=False, allow_unicode=True)
     return output
@@ -236,8 +313,19 @@ def _parse_channels(raw: Any) -> list[ChannelConfig]:
                 amplifier_mode=str(item.get("amplifier_mode", "AC")).strip().upper(),
                 hardware_highpass_hz=_optional_float(item.get("hardware_highpass_hz")),
                 hardware_lowpass_hz=_optional_float(item.get("hardware_lowpass_hz")),
+                hardware_filter_enabled=_as_bool(
+                    item.get("hardware_filter_enabled", True)
+                ),
+                hardware_notch_enabled=_as_bool(
+                    item.get("hardware_notch_enabled", False)
+                ),
+                hardware_notch_hz=_optional_float(item.get("hardware_notch_hz")),
+                amplifier_settings_verified=_as_bool(
+                    item.get("amplifier_settings_verified", False)
+                ),
+                amplifier_notes=str(item.get("amplifier_notes", "")).strip(),
                 color=str(item.get("color", "")).strip(),
-                terminal_config=_optional_text(item.get("terminal_config")),
+                terminal_config=_optional_upper_text(item.get("terminal_config")),
                 input_min_v=_optional_float(item.get("input_min_v")),
                 input_max_v=_optional_float(item.get("input_max_v")),
             )
@@ -276,6 +364,21 @@ def _optional_text(value: Any) -> str | None:
     if value in (None, "", "None", "null"):
         return None
     return str(value).strip()
+
+
+def _optional_upper_text(value: Any) -> str | None:
+    text = _optional_text(value)
+    return text.upper() if text else None
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in {"true", "yes", "on", "1"}:
+            return True
+        if normalized in {"false", "no", "off", "0", "", "none", "null"}:
+            return False
+    return bool(value)
 
 
 def _pair(value: Any, default: tuple[float, float]) -> tuple[float, float]:

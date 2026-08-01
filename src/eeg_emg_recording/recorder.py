@@ -89,6 +89,8 @@ class Recorder:
             edge=config.sync.analog_edge,
         )
         self._quality = _SignalQualityMonitor(config)
+        self._last_live_preview_s = float("-inf")
+        self._live_preview_last_error = ""
 
     def request_stop(self) -> None:
         self.stop_event.set()
@@ -250,6 +252,10 @@ class Recorder:
                         details={"channel": event["channel"]},
                     )
                 self._consume_control_events()
+                self._write_live_preview(
+                    values,
+                    sample_rate_hz=timing.sample_rate_hz,
+                )
                 if self.preview_callback is not None:
                     try:
                         keep_running = self.preview_callback(
@@ -374,6 +380,66 @@ class Recorder:
                 str(payload.get("event_name", "external_event")),
                 payload,
             )
+
+    def _write_live_preview(
+        self,
+        block: np.ndarray,
+        *,
+        sample_rate_hz: float,
+    ) -> None:
+        if not self.control.enabled or self.control.path is None:
+            return
+        now_s = time.monotonic()
+        refresh_hz = max(
+            0.5,
+            min(5.0, float(self.config.preview.refresh_hz)),
+        )
+        if now_s - self._last_live_preview_s < 1.0 / refresh_hz:
+            return
+        self._last_live_preview_s = now_s
+        values = np.asarray(block, dtype=float)
+        point_count = min(400, values.shape[1])
+        indices = np.linspace(
+            0,
+            values.shape[1] - 1,
+            point_count,
+        ).astype(int)
+        traces = {}
+        for channel_index, channel in enumerate(
+            self.config.acquisition.active_channels
+        ):
+            output_v = values[channel_index, indices]
+            traces[channel.name] = {
+                "role": channel.role,
+                "output_v": output_v.tolist(),
+                "input_uv_derived": (
+                    output_v * channel.input_uv_per_output_v
+                ).tolist(),
+            }
+        try:
+            atomic_write_json(
+                self.control.path / "live_preview.json",
+                {
+                    "schema": "aki_eeg_emg_live_preview_v1",
+                    "wall_time_ns": time.time_ns(),
+                    "monotonic_ns": time.perf_counter_ns(),
+                    "session_dir": str(self.session_dir),
+                    "samples_written": self.writer.samples_written,
+                    "elapsed_s": self.writer.samples_written
+                    / float(sample_rate_hz),
+                    "sample_rate_hz": float(sample_rate_hz),
+                    "traces": traces,
+                },
+            )
+            self._live_preview_last_error = ""
+        except Exception as exc:
+            message = f"{type(exc).__name__}: {exc}"
+            if message != self._live_preview_last_error:
+                self.logger.warning(
+                    "Could not update live preview telemetry: %s",
+                    message,
+                )
+                self._live_preview_last_error = message
 
     def _record_control_payload_event(self, event_name: str, payload: dict[str, Any]) -> None:
         monotonic_ns = _optional_int(payload.get("monotonic_ns"))
