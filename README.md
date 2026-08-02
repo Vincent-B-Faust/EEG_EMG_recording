@@ -1,5 +1,9 @@
 # EEG-EMG Recording
 
+[中文](#中文说明) · [English](#english-guide)
+
+<a id="中文说明"></a>
+
 > 设备型号说明：需求中写的是 `NI USB-9001`，但未找到这个型号的 NI 官方资料；可核实的相近型号是 `NI USB-6001`，因此默认配置按 USB-6001 构建。采集代码本身会通过 NI-DAQmx 枚举实际设备和通道；正式接线前请核对采集卡铭牌，并以 `list_ni_devices.cmd` 的输出为准。
 
 独立的 NI-DAQmx EEG/EMG 睡眠记录系统。它使用 WPI DAM50 的模拟输出，经 NI USB-6001 连续采集，支持自由配置通道、实时预览、增量 HDF5 保存、外部事件/停止控制，以及与 Thermocamera 实验 session 对齐。
@@ -301,3 +305,157 @@ environment_bootstrap.cmd run -- -m pytest -q
 - control event 优先及 wall-clock fallback 对齐
 - 任意路径共享环境发现、显式路径覆盖及项目独立环境回退
 - 所有 Windows 入口统一使用环境引导器且不含固定盘符/用户名
+
+---
+
+<a id="english-guide"></a>
+
+## English Guide
+
+This repository is a standalone NI-DAQmx EEG/EMG recorder for WPI DAM50
+amplifier outputs and NI USB-6001 acquisition. It supports configurable
+channels, live preview, incremental HDF5 storage, external events and graceful
+stop control, and timestamp alignment with Thermocamera sessions.
+
+The original requirement named an `NI USB-9001`, for which no matching NI
+documentation was found. The verified nearby device is USB-6001, so the
+checked-in hardware defaults target USB-6001. Always confirm the physical
+device label and use `list_ni_devices.cmd` before wiring or recording.
+
+### Quick start
+
+1. Run `install_environment.cmd` (`install_shared_env.cmd` remains an alias).
+2. Connect the USB-6001 and verify it in NI MAX.
+3. Run `list_ni_devices.cmd` and confirm the actual `Dev*/ai*` names.
+4. Copy or edit `configs/ni_usb6001_dam50.yaml` to match the real wiring.
+5. Run `start_gui.cmd`, review every channel and amplifier field, preview the
+   signals, then start recording.
+
+Without hardware, run `run_fake_demo.cmd 20` or replace `20` with another
+duration. The demo records five synthetic EEG/EMG/SYNC channels and exercises
+the same storage and preview path.
+
+### Portable environment discovery
+
+All Windows launchers use `environment_bootstrap.cmd`. It searches explicit
+values in `environment.local.cmd`, active/PATH/registered Conda environments,
+common Conda installations on mounted drives, `thermocamera_public`, then the
+project-local `.runtime/envs/eeg_emg_recording` fallback. It never assumes a
+specific drive letter or user directory.
+
+```cmd
+check_environment.cmd
+environment_bootstrap.cmd doctor --json
+```
+
+Copy `environment.local.cmd.example` to the Git-ignored
+`environment.local.cmd` when explicit control is needed. Set
+`EEG_EMG_ENV_MODE` to `auto`, `shared`, or `standalone`; optional absolute
+overrides include `EEG_EMG_CONDA_EXE`, `EEG_EMG_ENV_PREFIX`,
+`EEG_EMG_STANDALONE_PREFIX`, `EEG_EMG_ENV_SEARCH_ROOTS`, and
+`EEG_EMG_BOOTSTRAP_PYTHON`. Avoid broad data-drive searches; declare unusual
+installation roots explicitly.
+
+### Hardware and wiring constraints
+
+```text
+animal electrodes -> DAM50 differential input -> DAM50 BNC output
+                  -> USB-6001 analog input -> computer
+```
+
+- One DAM50 has one BNC output and therefore supplies one independent channel.
+- EEG plus EMG for one mouse requires at least two DAM50 amplifiers.
+- USB-6001 differential mode exposes four logical channels: `ai0` pairs with
+  AI4, `ai1` with AI5, `ai2` with AI6, and `ai3` with AI7.
+- Total analog throughput is 20 kS/s, so
+  `enabled channels * per-channel sample rate <= 20000`.
+- Never connect animal electrodes directly to USB-6001. Follow the DAM50 and
+  NI differential-wiring manuals, including any required bias path.
+
+The software records settings that were physically made on each DAM50; it
+does not control the amplifier. Enter the real gain, AC/DC mode, filters,
+serial/asset ID, NI range, verification state, and notes. Any gain/filter
+change clears the verified flag until the hardware is checked again.
+
+`/signals/output_voltage_v` always stores the raw NI measurement in volts. The
+optional preview value is derived only for display:
+
+```text
+derived_input_uv = output_voltage_v * 1e6 / amplifier_gain
+```
+
+Software notch/band-pass settings affect preview only. Before using animal
+signals, test polarity and scale briefly with the DAM50 BAT/CAL 10 Hz signal.
+
+### Channel configuration
+
+Each enabled channel needs a unique name and physical channel. Common roles
+are `EEG`, `EMG`, `EOG`, `ECG`, `SYNC`, and `AUX`. Important acquisition fields
+include backend (`nidaqmx` or `fake`), device, rate, block duration, total
+duration, terminal configuration, NI range, and per-channel amplifier
+metadata. `storage.csv_enabled` creates an optional decimated exchange CSV;
+HDF5 remains the authoritative data.
+
+```yaml
+acquisition:
+  sample_rate_hz: 1000
+  terminal_config: DIFF
+  channels:
+    - name: Mouse01_EEG
+      mouse_id: Mouse01
+      role: EEG
+      physical_channel: ai0
+      amplifier_gain: 1000
+      amplifier_model: WPI DAM50
+      amplifier_serial: DAM50-001
+      amplifier_mode: AC
+      hardware_highpass_hz: 0.1
+      hardware_lowpass_hz: 1000
+      amplifier_settings_verified: true
+```
+
+### CLI and preview
+
+```cmd
+environment_bootstrap.cmd run -- -m eeg_emg_recording list-devices
+environment_bootstrap.cmd run -- -m eeg_emg_recording validate --config configs\ni_usb6001_dam50.yaml
+environment_bootstrap.cmd run -- -m eeg_emg_recording record --config configs\ni_usb6001_dam50.yaml
+environment_bootstrap.cmd run -- -m eeg_emg_recording inspect --session D:\path\to\session
+environment_bootstrap.cmd run -- -m eeg_emg_recording export-csv --session D:\path\to\session --decimation 10
+```
+
+`record` accepts safe overrides for duration, output/session directory,
+preview, fake mode, control directory, and parent session. A requested session
+directory must be empty. Press `Q`/`Esc`, use `Ctrl+C`, or send a control stop
+for graceful completion; the recorder flushes HDF5 and writes metadata and
+`complete.json`.
+
+### Synchronization and Multi Recording System
+
+Use the sibling `Multi_recording_system` as the preferred single supervisor.
+It starts EEG/EMG first, waits for `ready.json`, starts thermal recording, then
+stores one cross-system manifest. Manual integration uses the same control
+protocol: `record --until-stop`, `event` for thermal start/end, `stop`, then
+`align`.
+
+Same-computer monotonic events support ordinary alignment. For validated
+sub-millisecond synchronization, wire a TTL start pulse to USB-6001 PFI0/PFI1
+or to a dedicated analog `SYNC` channel. Enable analog start matching only
+when that exact channel carries the dedicated thermal-start pulse. When all
+four differential analog channels are occupied, prefer PFI or additional
+hardware.
+
+### Session contents and recovery
+
+Each session contains `signals.h5`, `metadata.json`, expanded
+`config_used.yaml`, block/event tables, logs, optional decimated CSV,
+alignment, and control state. HDF5 data are little-endian float32 with shape
+`[sample, channel]`; `committed_samples` marks the valid boundary after an
+interruption. Inspection/export ignores an uncommitted tail. Preserve partial
+sessions for diagnosis rather than deleting them.
+
+Run the full regression suite with:
+
+```cmd
+environment_bootstrap.cmd run -- -m pytest -q
+```
