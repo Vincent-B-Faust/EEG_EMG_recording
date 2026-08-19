@@ -1,0 +1,12 @@
+{
+  "protocol": "aki_multi_recording_v1",
+  "state": "completed",
+  "wall_time_ns": 1787142459658245000,
+  "monotonic_ns": 10798482566700,
+  "pid": 18424,
+  "run_id": "ff27d124ef5a490e95d2f0983860b628",
+  "clock_host": "AkiLabExperimet",
+  "session_dir": "D:\\Data\\LiuZY\\Code\\EEG_EMG_recording\\runs\\session_20260819_202719_Mouse01_c84393e3",
+  "stop_reason": "duration_complete",
+  "samples_written": 20000
+}

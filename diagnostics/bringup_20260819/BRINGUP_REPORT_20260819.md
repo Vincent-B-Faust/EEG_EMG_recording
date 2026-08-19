@@ -226,3 +226,39 @@
   Until that return path is verified, the prior RSE output connection is the
   safer known configuration. The DAM50 already performs differential sensing
   at its A-B animal input; its BNC output is a single-ended signal.
+
+## EEG 差分 + EMG RSE、激光器线缆移远 / EEG DIFF + EMG RSE with optical wiring moved away
+
+- 新增并实机验证混合配置
+  `configs/ni_usb6001_dam50_hybrid_eeg_diff_emg_rse.yaml`：EEG AI0/AI4
+  差分，EMG AI1/AI GND RSE。LED/AO 未被软件访问。按用户报告将激光器相关线缆
+  物理移远后完成 20 秒、20,000 samples/channel：
+  `session_20260819_202719_Mouse01_c84393e3/`。
+- EEG 保持良好：50 Hz 功率占比 4.24%，峰峰值 522.0 µV，RMS 81.2 µV，主频
+  1.5 Hz，无削顶。五个 4 秒窗口为 6.52%、3.38%、4.79%、4.14%、3.37%，
+  全部通过 20% 门槛。
+- EMG 不能判为改善。其 50 Hz 占比虽由上一轮全差分的 90.70% 降至 33.87%，但
+  主频变为 100 Hz，峰峰值升至 10.477 mV，RMS 2.512 mV，DAM50 输出达到
+  -3.686--6.791 V；50/100 Hz 跨通道相干性分别为 0.7077/0.9617。强 100 Hz
+  成分抬高了总功率，因而单看 50 Hz 比例会产生虚假的“改善”。
+- EMG 五个 4 秒窗口的 50 Hz 比例为 17.05%、10.39%、43.27%、7.93%、39.09%，
+  但每窗均有接近 6.79 mV 的绝对输入峰值并受 100 Hz 主导；当前实时幅度门控
+  `max_abs_input_uv=5000` 应将其拒绝。
+- 结论：混合接法可保留用于 EEG 研究比较，但当前 EMG 仍不可用。下一步必须确认本轮
+  LEDD1B/M385FP1 电源是否重新接通；若已接通，100 Hz 与其整流/供电耦合时间关系
+  一致但尚未形成因果证明，应再做“驱动器上电、MOD BNC 断开”的单变量试验；若仍断电，
+  则优先检查 EMG DAM50 输入/输出、动物接地和 AI GND 返回。
+
+- A mixed NI configuration was added and hardware-validated: EEG uses AI0/AI4
+  differential while EMG uses AI1/AI GND RSE. After the optical wiring was
+  physically moved away, a 20-second run completed without software access to AO.
+- EEG remained usable: 4.24% line-band power, 522.0 uV peak-to-peak, 81.2 uV
+  RMS, no clipping, and all five four-second windows passed at 3.37%--6.52%.
+- EMG did not improve physiologically. Although its nominal 50 Hz fraction fell
+  to 33.87%, its dominant frequency became 100 Hz, peak-to-peak amplitude rose
+  to 10.477 mV, RMS rose to 2.512 mV, and the DAM50 output reached
+  -3.686--6.791 V. Coherence was 0.7077 at 50 Hz and 0.9617 at 100 Hz.
+- The large 100 Hz component inflates total power, so a lower 50 Hz percentage
+  is misleading. Confirm whether the LEDD1B/M385FP1 supply was reconnected in
+  this run. If powered, next test the powered driver with MOD BNC disconnected;
+  if unpowered, inspect the EMG amplifier, animal reference, and AI GND return.

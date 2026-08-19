@@ -1,0 +1,93 @@
+# NI USB-6001 mixed terminal configuration for the 2026-08-19 wiring test.
+# EEG: DAM50 BNC center -> AI0, return/shell -> AI4 (DIFF pair).
+# EMG: DAM50 BNC center -> AI1, return/shell -> AI GND (RSE).
+# Do not connect EEG AI4 to AI GND during this comparison.
+project:
+  output_root: D:\Data\LiuZY\Code\EEG_EMG_recording\runs
+  session_name: eeg_diff_emg_rse_laser_cable_remote
+  mouse_ids:
+    - Mouse01
+
+acquisition:
+  backend: nidaqmx
+  device: auto
+  sample_rate_hz: 1000.0
+  block_duration_s: 0.1
+  duration_s: null
+  terminal_config: RSE
+  input_range_v: [-10.0, 10.0]
+  read_timeout_s: 10.0
+  start_trigger:
+    enabled: false
+    source: /{device}/PFI0
+    edge: rising
+  channels:
+    - name: Mouse01_EEG
+      physical_channel: ai0
+      role: EEG
+      mouse_id: Mouse01
+      enabled: true
+      amplifier_gain: 1000.0
+      amplifier_model: WPI DAM50
+      amplifier_serial: ""
+      amplifier_mode: AC
+      hardware_highpass_hz: 0.1
+      hardware_lowpass_hz: 100.0
+      hardware_filter_enabled: true
+      hardware_notch_enabled: false
+      hardware_notch_hz: null
+      amplifier_settings_verified: true
+      amplifier_notes: "DIFF: BNC center to AI0; return/shell to AI4; no simultaneous AI GND tie."
+      color: "#20A4F3"
+      terminal_config: DIFF
+      input_min_v: null
+      input_max_v: null
+    - name: Mouse01_EMG
+      physical_channel: ai1
+      role: EMG
+      mouse_id: Mouse01
+      enabled: true
+      amplifier_gain: 1000.0
+      amplifier_model: WPI DAM50
+      amplifier_serial: ""
+      amplifier_mode: AC
+      hardware_highpass_hz: 10.0
+      hardware_lowpass_hz: 100.0
+      hardware_filter_enabled: true
+      hardware_notch_enabled: false
+      hardware_notch_hz: null
+      amplifier_settings_verified: true
+      amplifier_notes: "RSE: BNC center to AI1; return/shell to AI GND."
+      color: "#F26430"
+      terminal_config: RSE
+      input_min_v: null
+      input_max_v: null
+
+preview:
+  enabled: true
+  history_s: 5.0
+  refresh_hz: 10
+  display_units: input_uv
+  auto_scale: true
+  notch_hz: 50.0
+  notch_q: 30
+  filter_display_only: true
+  eeg_bandpass_hz: [0.5, 45.0]
+  emg_bandpass_hz: [10.0, 90.0]
+  window_width: 1200
+  window_height: 720
+
+storage:
+  flush_interval_s: 1.0
+  hdf5_compression: lzf
+  csv_enabled: false
+  csv_decimation: 10
+
+sync:
+  control_dir: null
+  parent_session_dir: null
+  analog_threshold_v: 2.5
+  analog_edge: rising
+  analog_start_match_enabled: false
+  analog_start_match_channel: ""
+  analog_start_match_window_s: 1.0
