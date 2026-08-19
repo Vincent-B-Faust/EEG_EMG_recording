@@ -1,0 +1,3 @@
+event_name,source,sample_index,time_s,wall_time_ns,wall_time,monotonic_ns,value,details_json
+recording_started,eeg_emg,0,0.0,1787135322082318300,2026-08-19T18:28:42.082318,3660907230800,,{}
+recording_stopped,eeg_emg,10000,10.0,1787135332082318300,2026-08-19T18:28:52.082318,3670939530100,,"{""status"":""completed"",""reason"":""duration_complete""}"

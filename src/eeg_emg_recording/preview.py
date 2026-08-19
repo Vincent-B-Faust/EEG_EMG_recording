@@ -5,7 +5,6 @@ from collections.abc import Callable
 from importlib.util import find_spec
 from typing import Any
 
-import cv2
 import numpy as np
 
 from .models import ChannelConfig, PreviewUpdate, RecordingConfig
@@ -39,6 +38,8 @@ class OpenCvPreview:
         self._render_period_s = 1.0 / max(config.preview.refresh_hz, 1.0)
 
     def __call__(self, update: PreviewUpdate) -> bool:
+        import cv2
+
         values = self.buffer.append(update.block)
         if update.elapsed_s - self._last_render_s < self._render_period_s:
             return True
@@ -63,8 +64,10 @@ class OpenCvPreview:
 
     def close(self) -> None:
         try:
+            import cv2
+
             cv2.destroyWindow(self.window_name)
-        except cv2.error:
+        except Exception:
             pass
 
 
@@ -79,6 +82,8 @@ def render_preview_canvas(
     elapsed_s: float,
     samples_written: int,
 ) -> np.ndarray:
+    import cv2
+
     width = max(640, int(width))
     height = max(300, int(height))
     canvas = np.full((height, width, 3), 248, dtype=np.uint8)

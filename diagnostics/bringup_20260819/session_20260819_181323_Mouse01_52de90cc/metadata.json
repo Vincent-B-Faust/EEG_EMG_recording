@@ -1,0 +1,207 @@
+{
+  "schema": "aki_eeg_emg_recording_v1",
+  "status": "completed",
+  "session_dir": "D:\\Data\\LiuZY\\Code\\EEG_EMG_recording\\diagnostics\\bringup_20260819\\session_20260819_181323_Mouse01_52de90cc",
+  "start_wall_ns": 1787134403779255100,
+  "start_wall": 1787134403.7792552,
+  "start_time": "2026-08-19T18:13:23.779255",
+  "start_monotonic_ns": 2742603761700,
+  "sample_rate_hz": 1000.0,
+  "block_size": 100,
+  "channels": [
+    {
+      "name": "Mouse01_EEG",
+      "physical_channel": "ai0",
+      "role": "EEG",
+      "mouse_id": "Mouse01",
+      "enabled": true,
+      "amplifier_gain": 1000.0,
+      "amplifier_model": "WPI DAM50",
+      "amplifier_serial": "",
+      "amplifier_mode": "AC",
+      "hardware_highpass_hz": 0.1,
+      "hardware_lowpass_hz": 100.0,
+      "hardware_filter_enabled": true,
+      "hardware_notch_enabled": false,
+      "hardware_notch_hz": null,
+      "amplifier_settings_verified": true,
+      "amplifier_notes": "RSE: BNC center to AI0; shield to AI GND. Verify AC, A-B, gain 1000, low 0.1 Hz, high 0.1 kHz.",
+      "color": "#20A4F3",
+      "terminal_config": null,
+      "input_min_v": null,
+      "input_max_v": null,
+      "input_uv_per_output_v": 1000.0,
+      "display_color": "#20A4F3",
+      "raw_output_units": "V",
+      "derived_input_units": "uV",
+      "derived_input_formula": "derived_input_uv = output_voltage_v * 1e6 / amplifier_gain",
+      "derived_input_values_stored": false,
+      "amplifier_settings_source": "manual_user_entry"
+    },
+    {
+      "name": "Mouse01_EMG",
+      "physical_channel": "ai1",
+      "role": "EMG",
+      "mouse_id": "Mouse01",
+      "enabled": true,
+      "amplifier_gain": 1000.0,
+      "amplifier_model": "WPI DAM50",
+      "amplifier_serial": "",
+      "amplifier_mode": "AC",
+      "hardware_highpass_hz": 10.0,
+      "hardware_lowpass_hz": 100.0,
+      "hardware_filter_enabled": true,
+      "hardware_notch_enabled": false,
+      "hardware_notch_hz": null,
+      "amplifier_settings_verified": true,
+      "amplifier_notes": "RSE: BNC center to AI1; shield to AI GND. Verify AC, A-B, gain 1000, low 10 Hz, high 0.1 kHz.",
+      "color": "#F26430",
+      "terminal_config": null,
+      "input_min_v": null,
+      "input_max_v": null,
+      "input_uv_per_output_v": 1000.0,
+      "display_color": "#F26430",
+      "raw_output_units": "V",
+      "derived_input_units": "uV",
+      "derived_input_formula": "derived_input_uv = output_voltage_v * 1e6 / amplifier_gain",
+      "derived_input_values_stored": false,
+      "amplifier_settings_source": "manual_user_entry"
+    }
+  ],
+  "amplifier_settings_schema": "aki_amplifier_settings_v1",
+  "amplifier_settings": [
+    {
+      "channel_name": "Mouse01_EEG",
+      "model": "WPI DAM50",
+      "serial": "",
+      "gain": 1000.0,
+      "coupling_mode": "AC",
+      "hardware_filter_enabled": true,
+      "hardware_highpass_hz": 0.1,
+      "hardware_lowpass_hz": 100.0,
+      "hardware_notch_enabled": false,
+      "hardware_notch_hz": null,
+      "settings_verified_against_hardware": true,
+      "notes": "RSE: BNC center to AI0; shield to AI GND. Verify AC, A-B, gain 1000, low 0.1 Hz, high 0.1 kHz.",
+      "settings_source": "manual_user_entry",
+      "physical_channel": "ai0",
+      "signal_role": "EEG",
+      "mouse_id": "Mouse01",
+      "daq_terminal_config": "RSE",
+      "daq_input_range_v": [
+        -10.0,
+        10.0
+      ]
+    },
+    {
+      "channel_name": "Mouse01_EMG",
+      "model": "WPI DAM50",
+      "serial": "",
+      "gain": 1000.0,
+      "coupling_mode": "AC",
+      "hardware_filter_enabled": true,
+      "hardware_highpass_hz": 10.0,
+      "hardware_lowpass_hz": 100.0,
+      "hardware_notch_enabled": false,
+      "hardware_notch_hz": null,
+      "settings_verified_against_hardware": true,
+      "notes": "RSE: BNC center to AI1; shield to AI GND. Verify AC, A-B, gain 1000, low 10 Hz, high 0.1 kHz.",
+      "settings_source": "manual_user_entry",
+      "physical_channel": "ai1",
+      "signal_role": "EMG",
+      "mouse_id": "Mouse01",
+      "daq_terminal_config": "RSE",
+      "daq_input_range_v": [
+        -10.0,
+        10.0
+      ]
+    }
+  ],
+  "source": {
+    "type": "nidaqmx",
+    "device": "Dev1",
+    "physical_channels": [
+      "Dev1/ai0",
+      "Dev1/ai1"
+    ],
+    "terminal_config": "RSE",
+    "hardware_start_trigger": {
+      "enabled": false,
+      "source": "/{device}/PFI0",
+      "edge": "rising"
+    }
+  },
+  "files": {
+    "signals_hdf5": "signals.h5",
+    "dataset": "/signals/output_voltage_v",
+    "block_index": "block_index.csv",
+    "events": "events.csv",
+    "decimated_csv": null,
+    "config": "config_used.yaml"
+  },
+  "signal_storage": {
+    "stored_dataset": "/signals/output_voltage_v",
+    "stored_quantity": "unmodified DAQ measurement at amplifier output",
+    "stored_units": "V",
+    "derived_input_values_stored": false,
+    "derived_input_units": "uV",
+    "derived_input_formula": "derived_input_uv = output_voltage_v * 1e6 / amplifier_gain"
+  },
+  "samples_written": 20000,
+  "blocks_written": 200,
+  "time_mapping": {
+    "sample_time_s": "sample_index / sample_rate_hz",
+    "wall_time_ns": "start_wall_ns + round(sample_index * 1e9 / sample_rate_hz)",
+    "derived_amplifier_input_uv": "output_voltage_v * input_uv_per_output_v"
+  },
+  "parent_session_dir": null,
+  "control_dir": null,
+  "sync": {
+    "analog_threshold_v": 2.5,
+    "analog_edge": "rising",
+    "analog_start_match_enabled": false,
+    "analog_start_match_channel": "",
+    "analog_start_match_window_s": 1.0
+  },
+  "elapsed_s": 19.5,
+  "last_update_wall_ns": 1787134423301067300,
+  "signal_quality": {
+    "samples_checked_per_channel": 20000,
+    "channels": [
+      {
+        "name": "Mouse01_EEG",
+        "minimum_output_v": -0.3736549692694098,
+        "maximum_output_v": 2.1189721052069217,
+        "clipped_samples": 0,
+        "clipped_fraction": 0.0,
+        "nonfinite_samples": 0,
+        "input_range_v": [
+          -10.0,
+          10.0
+        ],
+        "warning": false
+      },
+      {
+        "name": "Mouse01_EMG",
+        "minimum_output_v": -0.05273245554417372,
+        "maximum_output_v": 0.19343702285550535,
+        "clipped_samples": 0,
+        "clipped_fraction": 0.0,
+        "nonfinite_samples": 0,
+        "input_range_v": [
+          -10.0,
+          10.0
+        ],
+        "warning": false
+      }
+    ],
+    "definition": "Clipping is within 1% of the configured NI input range."
+  },
+  "stop_reason": "duration_complete",
+  "end_wall_ns": 1787134423917018900,
+  "end_wall": 1787134423.917019,
+  "end_time": "2026-08-19T18:13:43.917019",
+  "duration_s": 20.0,
+  "runtime_s": 20.1377638,
+  "exception": null
+}

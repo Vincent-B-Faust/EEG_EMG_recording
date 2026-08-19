@@ -1,0 +1,12 @@
+{
+  "source_session": "D:\\Data\\LiuZY\\Code\\EEG_EMG_recording\\diagnostics\\bringup_20260819\\session_20260819_190645_Mouse01_e7e270ad",
+  "model": "D:\\Data\\LiuZY\\Code\\Sleep_Closeloop\\models\\realtime_single_eeg_a2_hmm.joblib",
+  "epoch_count": 2,
+  "quality_pass_count": 0,
+  "line_power_fraction": [
+    0.634718417145923,
+    0.7156157662742217
+  ],
+  "decision": "HMM_NOT_ADVANCED_QC_REJECTED",
+  "note": "Coordinates are shown for diagnosis; rejected epochs never enter HMM."
+}

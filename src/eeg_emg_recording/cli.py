@@ -12,7 +12,6 @@ from .alignment import align_to_thermal_session
 from .config import apply_overrides, load_config
 from .control import publish_event, request_stop
 from .devices import format_device_report, list_devices, validate_hardware
-from .preview import OpenCvPreview
 from .recorder import Recorder
 from .storage import export_csv, inspect_session
 
@@ -66,6 +65,18 @@ def build_parser() -> argparse.ArgumentParser:
     align.add_argument("--session", required=True)
     align.add_argument("--thermal-session", default=None)
     align.add_argument("--output", default=None)
+
+    analyze = sub.add_parser("analyze", help="Create traceable waveform and signal-quality diagnostics.")
+    analyze.add_argument("--session", required=True)
+    analyze.add_argument("--output-dir", default=None)
+    analyze.add_argument("--line-hz", type=float, default=50.0)
+    analyze.add_argument("--line-bandwidth-hz", type=float, default=2.0)
+    analyze.add_argument("--max-frequency-hz", type=float, default=100.0)
+    analyze.add_argument("--amplifier-output-limit-v", type=float, default=8.0)
+    analyze.add_argument("--headroom-warning-fraction", type=float, default=0.9)
+    analyze.add_argument("--start-s", type=float, default=0.0)
+    analyze.add_argument("--end-s", type=float, default=None)
+    analyze.add_argument("--line-power-warning-fraction", type=float, default=0.1)
 
     stop = sub.add_parser("stop", help="Request a synchronized recorder to stop cleanly.")
     stop.add_argument("--control-dir", required=True)
@@ -129,6 +140,23 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"Alignment: {path}")
             return 0
+        if args.command == "analyze":
+            from .diagnostics import analyze_session
+
+            report = analyze_session(
+                args.session,
+                output_dir=args.output_dir,
+                line_frequency_hz=args.line_hz,
+                line_bandwidth_hz=args.line_bandwidth_hz,
+                max_frequency_hz=args.max_frequency_hz,
+                amplifier_output_limit_v=args.amplifier_output_limit_v,
+                headroom_warning_fraction=args.headroom_warning_fraction,
+                start_s=args.start_s,
+                end_s=args.end_s,
+                line_power_warning_fraction=args.line_power_warning_fraction,
+            )
+            print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+            return 0
         if args.command == "stop":
             print(request_stop(args.control_dir, reason=args.reason))
             return 0
@@ -168,7 +196,12 @@ def _record(args: argparse.Namespace) -> int:
             except (OSError, ValueError):
                 pass
 
-    preview = OpenCvPreview(config) if config.preview.enabled else None
+    if config.preview.enabled:
+        from .preview import OpenCvPreview
+
+        preview = OpenCvPreview(config)
+    else:
+        preview = None
     recorder = Recorder(
         config,
         session_dir=args.session_dir,

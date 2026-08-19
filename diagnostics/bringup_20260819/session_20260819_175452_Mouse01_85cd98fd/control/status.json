@@ -1,0 +1,9 @@
+{
+  "protocol": "aki_multi_recording_v1",
+  "state": "initializing",
+  "wall_time_ns": 1787133292076977300,
+  "monotonic_ns": 1630901850400,
+  "pid": 10352,
+  "run_id": "670991a2f2354fa088ba649900d87630",
+  "clock_host": "AkiLabExperimet"
+}

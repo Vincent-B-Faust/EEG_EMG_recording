@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
+import types
 from typing import Callable
 
 import pytest
 
 from eeg_emg_recording.config import load_config
+from eeg_emg_recording import devices as devices_module
 from eeg_emg_recording.devices import DeviceInfo, validate_hardware
 
 
@@ -22,6 +25,12 @@ def test_shipped_configs_are_valid_and_explain_channel_capacity() -> None:
     assert [channel.role for channel in active] == ["EEG", "EMG"]
     assert len({channel.physical_channel for channel in active}) == len(active)
     assert hardware.acquisition.sample_rate_hz * len(active) <= 20_000
+
+    rse = load_config(PROJECT_ROOT / "configs" / "ni_usb6001_dam50_rse.yaml")
+    assert rse.acquisition.terminal_config == "RSE"
+    assert [channel.physical_channel for channel in rse.acquisition.active_channels] == ["ai0", "ai1"]
+    assert [channel.amplifier_settings_verified for channel in rse.acquisition.active_channels] == [True, True]
+    assert [channel.hardware_highpass_hz for channel in rse.acquisition.active_channels] == [0.1, 10.0]
 
     fake = load_config(PROJECT_ROOT / "configs" / "fake_demo.yaml")
     assert fake.acquisition.backend == "fake"
@@ -143,3 +152,51 @@ def test_analog_start_matching_requires_named_sync_channel(
 
     with pytest.raises(ValueError, match="must name one enabled channel"):
         load_config(config_path)
+
+
+def test_device_listing_does_not_query_optional_blocking_properties(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Named:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    class FakeDevice:
+        name = "Dev1"
+        product_type = "USB-6001"
+        is_simulated = False
+        ai_physical_chans = [Named("Dev1/ai0"), Named("Dev1/ai1")]
+        di_lines = [Named("Dev1/port0/line0")]
+        do_lines = [Named("Dev1/port0/line0")]
+
+        @property
+        def serial_num(self) -> str:
+            raise AssertionError("serial_num must not be queried during default discovery")
+
+        @property
+        def ai_max_single_chan_rate(self) -> float:
+            raise AssertionError("optional rate properties must not be queried")
+
+        @property
+        def ai_voltage_rngs(self) -> list[float]:
+            raise AssertionError("optional range properties must not be queried")
+
+    class FakeSystem:
+        @staticmethod
+        def local() -> object:
+            return types.SimpleNamespace(devices=[FakeDevice()])
+
+    fake_system_module = types.ModuleType("nidaqmx.system")
+    fake_system_module.System = FakeSystem
+    fake_package = types.ModuleType("nidaqmx")
+    fake_package.__path__ = []
+    fake_package.system = fake_system_module
+    monkeypatch.setitem(sys.modules, "nidaqmx", fake_package)
+    monkeypatch.setitem(sys.modules, "nidaqmx.system", fake_system_module)
+    monkeypatch.setattr(devices_module, "find_spec", lambda _name: object())
+
+    devices = devices_module.list_devices()
+
+    assert len(devices) == 1
+    assert devices[0].name == "Dev1"
+    assert devices[0].analog_input_channels == ("Dev1/ai0", "Dev1/ai1")
+    assert devices[0].serial_number == ""
+    assert devices[0].max_single_channel_rate_hz is None

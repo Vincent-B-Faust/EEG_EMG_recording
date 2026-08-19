@@ -289,6 +289,26 @@ session_YYYYMMDD_HHMMSS_<mouse>_<id>/
 HDF5 用 `committed_samples` 标记已提交边界，检查和导出会忽略异常中断留下的未提交尾部。
 CSV 仅用于交换或快速检查，不建议代替 HDF5 作为主数据。
 
+## RSE 首次标定与可追溯诊断
+
+`configs/ni_usb6001_dam50_rse.yaml` 用于当前两台 DAM50 的首次 RSE 标定：EEG BNC
+中心接 AI0、EMG BNC 中心接 AI1，两条 BNC 屏蔽/返回线接 AI GND。它不是对所有实验都
+最优的永久接法；只有完成 RSE 噪声基线后，才应在相同条件下与 DIFF 进行定量比较。
+
+每次短时记录后运行：
+
+```cmd
+environment_bootstrap.cmd run -- -m eeg_emg_recording analyze --session D:\path\to\session --line-hz 50 --max-frequency-hz 100
+```
+
+默认创建新的时间戳 `analysis_*` 文件夹，保存 `signal_quality.json/.csv`、完整波形与
+Welch PSD、首秒放大波形、幅度分布和跨通道相干性图。不会修改原始 HDF5。诊断阈值均可
+配置：`--line-bandwidth-hz`、`--amplifier-output-limit-v`、
+`--headroom-warning-fraction`、`--line-power-warning-fraction`。两路在 50/100 Hz 高相干通常提示共同电源、接地或动物参考
+电极问题；DAM50 输出逼近约 ±8 V 时，应先排除放大器输入端饱和，不能用软件陷波掩盖后
+继续正式实验。
+使用 `--start-s` 和 `--end-s` 可将滤波器恢复段、稳定段和运动伪迹分别分析，原始数据仍保持不变。
+
 ## 测试
 
 ```cmd
@@ -422,6 +442,7 @@ environment_bootstrap.cmd run -- -m eeg_emg_recording validate --config configs\
 environment_bootstrap.cmd run -- -m eeg_emg_recording record --config configs\ni_usb6001_dam50.yaml
 environment_bootstrap.cmd run -- -m eeg_emg_recording inspect --session D:\path\to\session
 environment_bootstrap.cmd run -- -m eeg_emg_recording export-csv --session D:\path\to\session --decimation 10
+environment_bootstrap.cmd run -- -m eeg_emg_recording analyze --session D:\path\to\session --line-hz 50
 ```
 
 `record` accepts safe overrides for duration, output/session directory,
@@ -429,6 +450,24 @@ preview, fake mode, control directory, and parent session. A requested session
 directory must be empty. Press `Q`/`Esc`, use `Ctrl+C`, or send a control stop
 for graceful completion; the recorder flushes HDF5 and writes metadata and
 `complete.json`.
+
+### Traceable RSE bring-up and diagnostics
+
+`configs/ni_usb6001_dam50_rse.yaml` is the initial two-DAM50 RSE baseline:
+EEG BNC center to AI0, EMG BNC center to AI1, and both BNC returns/shields to
+AI GND. It is a bring-up configuration, not a claim that RSE is always optimal.
+Compare it with DIFF only after a reproducible RSE baseline exists.
+
+The `analyze` command creates a new timestamped `analysis_*` directory without
+altering raw HDF5. It writes JSON/CSV metrics plus full waveforms, Welch PSD,
+a first-second zoom, amplitude distributions, and cross-channel coherence.
+Line frequency, analysis bandwidth, nominal DAM50 output limit, and headroom
+warning fraction are CLI parameters. Strong shared 50/100 Hz coherence points
+to a common power/ground/reference path. If a DAM50 output approaches its
+approximately +/-8 V swing, resolve input-stage saturation before considering
+software notch filtering or a production recording.
+Use `--start-s` and `--end-s` to analyze recovery, stable, and artifact windows
+separately without altering the source recording.
 
 ### Synchronization and Multi Recording System
 

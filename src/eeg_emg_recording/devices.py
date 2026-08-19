@@ -41,14 +41,18 @@ def list_devices() -> list[DeviceInfo]:
             DeviceInfo(
                 name=str(device.name),
                 product_type=str(_safe_get(device, "product_type", "")),
-                serial_number=str(_safe_get(device, "serial_num", "")),
+                # Some NI-DAQmx/device combinations block indefinitely while
+                # querying optional capability properties even though channel
+                # enumeration and acquisition work normally. Keep the default
+                # discovery path limited to properties required for recording.
+                serial_number="",
                 simulated=bool(_safe_get(device, "is_simulated", False)),
                 analog_input_channels=tuple(_channel_names(_safe_get(device, "ai_physical_chans", ()))),
                 digital_input_lines=tuple(_channel_names(_safe_get(device, "di_lines", ()))),
                 digital_output_lines=tuple(_channel_names(_safe_get(device, "do_lines", ()))),
-                max_single_channel_rate_hz=_optional_float(_safe_get(device, "ai_max_single_chan_rate", None)),
-                max_multi_channel_rate_hz=_optional_float(_safe_get(device, "ai_max_multi_chan_rate", None)),
-                voltage_ranges_v=tuple(float(item) for item in (_safe_get(device, "ai_voltage_rngs", ()) or ())),
+                max_single_channel_rate_hz=None,
+                max_multi_channel_rate_hz=None,
+                voltage_ranges_v=(),
             )
         )
     return result
