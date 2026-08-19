@@ -1,0 +1,16 @@
+{
+  "protocol": "aki_multi_recording_v1",
+  "state": "ready",
+  "wall_time_ns": 1787140500333815400,
+  "monotonic_ns": 8839158884100,
+  "pid": 15724,
+  "run_id": "7c8af953a6d94b829fb131f968bb1cfc",
+  "clock_host": "AkiLabExperimet",
+  "session_dir": "D:\\Data\\LiuZY\\Code\\EEG_EMG_recording\\runs\\session_20260819_195500_Mouse01_c6e71ad4",
+  "sample_rate_hz": 1000.0,
+  "channels": [
+    "Mouse01_EEG",
+    "Mouse01_EMG"
+  ],
+  "armed_for_trigger": false
+}

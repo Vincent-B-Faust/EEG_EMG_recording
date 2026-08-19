@@ -158,3 +158,39 @@
   persists, switch only the EMG DAM50 `INPUT SELECT` to `GND` for a 10-second
   isolation run. Keep preparation ground at the DAM50 input/reference network,
   not directly at NI AI GND or protective earth.
+
+## 拔掉 LEDD1B/M385FP1 电源后的对照 / LEDD1B-M385FP1 supply disconnected
+
+- 保持 NI 直连电脑、NTC 隔离 Hub、动物电极及 DAM50 接线不变，仅拔掉 LED
+  光源/驱动电源后完成 20 秒、20,000 samples/channel 的真实记录：
+  `session_20260819_195500_Mouse01_c6e71ad4/`。AO0 未被访问。
+- EEG 50 Hz 功率占比从上一轮 35.16% 降至 3.68%，峰峰值从 687.0 µV 降至
+  491.1 µV，未削顶；主频由 50 Hz 变为 1.75 Hz。
+- 五个连续 4 秒实时 QC 窗口的 EEG 50 Hz 占比分别为 2.58%、4.47%、4.11%、
+  3.64% 和 4.32%，全部稳定通过预注册的 `<20%` 门槛。这表明改善不是由 20 秒
+  平均造成的偶然现象。
+- EMG 50 Hz 功率占比由 77.18% 降至 63.92%，仍以 50 Hz 为主；五个 4 秒窗口为
+  60.30%--66.34%，全部不通过门槛。50 Hz 跨通道相干性由 0.999325 降至
+  0.988253，仍提示共同工频路径。
+- 因果判断：LEDD1B/LED 电源是 EEG 工频污染的重要来源，但不是 EMG 干扰的唯一
+  来源。正式 EEG baseline 可在 LED 电源断开状态下继续短期稳定性验证；闭环系统若要
+  同时上电，必须先对 LED 电源/驱动与动物记录链进行隔离，不能仅依赖软件 notch。
+- 下一单变量试验：保持 LED 电源断开，仅将 EMG DAM50 `INPUT SELECT` 切至 `GND`
+  记录 10 秒，以区分 EMG 干扰来自动物/电极输入侧，还是 DAM50 输出/DAQ/供电侧。
+
+- With the NI/NTC topology, animal electrodes, and DAM50 wiring unchanged, a
+  20-second hardware run completed after only the LEDD1B/M385FP1 supply was
+  disconnected. AO0 was not accessed.
+- EEG line-band power fell from 35.16% to 3.68%, peak-to-peak amplitude fell
+  from 687.0 uV to 491.1 uV, and the dominant frequency moved from 50 Hz to
+  1.75 Hz. There was no clipping.
+- Five consecutive four-second realtime-QC windows measured 2.58%, 4.47%,
+  4.11%, 3.64%, and 4.32%; all passed the predeclared 20% gate.
+- EMG improved from 77.18% to 63.92% line-band power but remained dominated by
+  50 Hz. Its five four-second windows were 60.30%--66.34%, all failing QC.
+  Cross-channel 50 Hz coherence decreased from 0.999325 to 0.988253 but
+  remained very high.
+- The LED power system was a major EEG interference source, but it is not the
+  sole EMG source. Keep the LED supply disconnected for further EEG stability
+  checks. Before closed-loop use with the LED powered, electrically/physically
+  isolate the LED supply and driver from the animal recording chain.
