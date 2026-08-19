@@ -194,3 +194,35 @@
   sole EMG source. Keep the LED supply disconnected for further EEG stability
   checks. Before closed-loop use with the LED powered, electrically/physically
   isolate the LED supply and driver from the animal recording chain.
+
+## NI 差分 AI0/AI4、AI1/AI5 对照 / NI differential AI0/AI4 and AI1/AI5
+
+- LEDD1B/M385FP1 电源继续断开；DAM50 与动物端保持不变。NI 改为 `DIFF`：EEG
+  BNC 中心/返回接 AI0/AI4，EMG 中心/返回接 AI1/AI5；完成 20 秒、20,000
+  samples/channel：`session_20260819_200354_Mouse01_a063ab2e/`。
+- EEG 与上一轮 RSE 几乎相同：50 Hz 占比由 3.68% 略降至 3.50%，峰峰值由
+  491.1 µV 降至 451.1 µV，主频 1.25 Hz；五个 4 秒窗口为 3.35%、4.14%、
+  3.85%、3.51%、3.34%，全部通过 20% 门槛。差分对 EEG 没有实质增益。
+- EMG 明显恶化：50 Hz 占比由 63.92% 升至 90.70%，峰峰值由 70.9 µV 增至
+  3.512 mV，RMS 由 7.78 µV 增至 464.1 µV；五个实时窗口为 83.98%--86.49%。
+  同时出现很强的 100 Hz 分量，50/100 Hz 跨通道相干性分别为 0.9892/0.9605。
+- 判定：当前 AI1/AI5 差分接线不应保留为正式 EMG 接法。该结果更符合 AI5 返回端
+  接触不良、接错 BNC 外壳/返回、或相对于 DAM50 单端输出参考浮空，而不是改善后的
+  生理 EMG。由于 DAM50 已在动物输入端完成 A-B 差分放大，其 BNC 输出是单端信号，
+  NI 端再改为差分未显示额外收益。
+- 下一步先停止采集并用万用表核对 BNC 外壳至 AI5 的连续性，确认没有同时接 AI GND。
+  在接线未核实前，恢复上一轮 RSE（中心→AI1、外壳→AI GND）更安全且幅度正常。
+
+- With the LED supply still disconnected, a 20-second NI differential run was
+  completed using AI0/AI4 for EEG and AI1/AI5 for EMG.
+- EEG was essentially unchanged from RSE: line-band power changed from 3.68%
+  to 3.50%, and all five four-second windows remained below 4.14%. Differential
+  acquisition provided no material EEG benefit.
+- EMG became substantially worse: line-band power increased from 63.92% to
+  90.70%, peak-to-peak amplitude increased from 70.9 uV to 3.512 mV, and RMS
+  increased from 7.78 uV to 464.1 uV. All five windows failed at 83.98%--86.49%.
+- Do not retain the present AI1/AI5 wiring for production. Verify continuity
+  from the EMG BNC shell/return to AI5 and ensure it is not also tied to AI GND.
+  Until that return path is verified, the prior RSE output connection is the
+  safer known configuration. The DAM50 already performs differential sensing
+  at its A-B animal input; its BNC output is a single-ended signal.
