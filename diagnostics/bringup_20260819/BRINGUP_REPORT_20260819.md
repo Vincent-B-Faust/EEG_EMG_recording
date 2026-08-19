@@ -100,3 +100,24 @@
 - A subsequent integrated hardware start was blocked by NI-DAQmx error
   `-50103` because the existing `EEG-EMG Sleep Recording` GUI (PID 15300) was
   still holding the USB-6001. That user-facing process was not terminated.
+
+## 最终集成冒烟测试 / Final integrated smoke test
+
+- 旧 GUI 释放设备后，`Sleep_Closeloop` 于 19:38 完成 12 秒真实集成记录：
+  `Sleep_Closeloop/runs/realtime_unsupervised_mouse01/session_20260819_193804_c7da8a1a/`。
+- 三个 4 秒 epoch 的 49--51 Hz / 1--100 Hz 占比分别为 27.06%、25.56%、
+  19.79%。前两个被质量门控拒绝，第三个仅略低于 20% 门限并作为第 1/900 个
+  baseline 窗口保存。
+- 三个 epoch 的流形坐标、质量状态与冻结 HMM 矩阵均成功实时发布并落盘；因一小时
+  baseline 未完成，HMM 后验与睡眠状态按设计不启动。LED/激光全程禁用、0% 功率。
+- 跨设备精选归档位于
+  `Sleep_Closeloop/docs/hardware_smoke_20260819/`。当前信号仍处于门限边缘，
+  不应开始正式一小时 baseline；应先让连续窗口稳定且显著低于 20%。
+
+- After the old GUI released the device, the final 12-second integrated run
+  completed successfully. Its three line-power fractions were 27.06%, 25.56%,
+  and 19.79%. Two epochs were rejected and one contributed the first of 900
+  required baseline windows.
+- Manifold coordinates, quality state, and the frozen HMM matrix were published
+  and archived. The HMM correctly remained inactive because the one-hour
+  baseline was incomplete. Optical output stayed disabled at 0% power.
