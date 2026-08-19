@@ -1,0 +1,82 @@
+{
+  "schema": "aki_eeg_emg_signal_diagnostics_v1",
+  "created_at": "2026-08-19T19:46:07.581992+08:00",
+  "session_dir": "D:\\Data\\LiuZY\\Code\\EEG_EMG_recording\\runs\\session_20260819_194531_Mouse01_9e0dbe73",
+  "source_metadata": "D:\\Data\\LiuZY\\Code\\EEG_EMG_recording\\runs\\session_20260819_194531_Mouse01_9e0dbe73\\metadata.json",
+  "source_signals": "D:\\Data\\LiuZY\\Code\\EEG_EMG_recording\\runs\\session_20260819_194531_Mouse01_9e0dbe73\\signals.h5",
+  "parameters": {
+    "line_frequency_hz": 50.0,
+    "line_bandwidth_hz": 2.0,
+    "max_frequency_hz": 100.0,
+    "amplifier_output_limit_v": 8.0,
+    "headroom_warning_fraction": 0.9,
+    "start_s": 0.0,
+    "end_s": 20.0,
+    "source_total_duration_s": 20.0,
+    "line_power_warning_fraction": 0.2
+  },
+  "channels": [
+    {
+      "channel": "Mouse01_EEG",
+      "role": "EEG",
+      "samples": 20000,
+      "sample_rate_hz": 1000.0,
+      "gain": 1000.0,
+      "mean_output_v": -0.08888108995171497,
+      "minimum_output_v": -0.45485222339630127,
+      "maximum_output_v": 0.2321023792028427,
+      "peak_to_peak_output_v": 0.686954602599144,
+      "demeaned_rms_output_v": 0.10439828983715889,
+      "minimum_input_uv": -454.85222339630127,
+      "maximum_input_uv": 232.1023792028427,
+      "peak_to_peak_input_uv": 686.954602599144,
+      "demeaned_rms_input_uv": 104.3982898371589,
+      "amplifier_headroom_used_fraction": 0.05685652792453766,
+      "samples_beyond_amplifier_limit": 0,
+      "fraction_beyond_amplifier_limit": 0.0,
+      "samples_near_ni_limit": 0,
+      "fraction_near_ni_limit": 0.0,
+      "line_frequency_hz": 50.0,
+      "line_band_power_fraction_0p5_to_max": 0.35159172786756254,
+      "dominant_frequency_hz": 50.0,
+      "warning_amplifier_headroom": false,
+      "warning_ni_clipping": false,
+      "warning_line_noise": true
+    },
+    {
+      "channel": "Mouse01_EMG",
+      "role": "EMG",
+      "samples": 20000,
+      "sample_rate_hz": 1000.0,
+      "gain": 1000.0,
+      "mean_output_v": 0.055611951864510775,
+      "minimum_output_v": 0.03490903228521347,
+      "maximum_output_v": 0.09677361696958542,
+      "peak_to_peak_output_v": 0.06186458468437195,
+      "demeaned_rms_output_v": 0.007389082831923494,
+      "minimum_input_uv": 34.90903228521347,
+      "maximum_input_uv": 96.77361696958542,
+      "peak_to_peak_input_uv": 61.86458468437195,
+      "demeaned_rms_input_uv": 7.389082831923494,
+      "amplifier_headroom_used_fraction": 0.012096702121198177,
+      "samples_beyond_amplifier_limit": 0,
+      "fraction_beyond_amplifier_limit": 0.0,
+      "samples_near_ni_limit": 0,
+      "fraction_near_ni_limit": 0.0,
+      "line_frequency_hz": 50.0,
+      "line_band_power_fraction_0p5_to_max": 0.7717592887629654,
+      "dominant_frequency_hz": 50.0,
+      "warning_amplifier_headroom": false,
+      "warning_ni_clipping": false,
+      "warning_line_noise": true
+    }
+  ],
+  "cross_channel_coherence": [
+    {
+      "left_channel": "Mouse01_EEG",
+      "right_channel": "Mouse01_EMG",
+      "coherence_at_line_frequency": 0.9993245169913151,
+      "coherence_at_second_harmonic": 0.1937641294650793
+    }
+  ]
+}

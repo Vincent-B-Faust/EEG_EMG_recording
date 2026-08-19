@@ -121,3 +121,40 @@
 - Manifold coordinates, quality state, and the frozen HMM matrix were published
   and archived. The HMM correctly remained inactive because the one-hour
   baseline was incomplete. Optical output stayed disabled at 0% power.
+
+## NI 直连电脑、NTC 保持隔离 Hub 的复测 / NI direct-to-PC with NTC on isolated hub
+
+- 当前 Windows 枚举正常：`USB-6001` 状态为 `OK`，NTC 对应的 FTDI USB Serial Port
+  为 `COM4`、状态同为 `OK`。本轮未更改或重启 NTC，LED/激光保持禁用。
+- 20 秒真实记录完整完成，共 20,000 samples/channel：
+  `session_20260819_194531_Mouse01_9e0dbe73/`。
+- EEG 未削顶，范围 -454.9--232.1 µV、峰峰值 687.0 µV、去均值 RMS 104.4 µV，
+  但 49--51 Hz 占 0.5--100 Hz 功率的 35.16%。
+- EMG 未削顶，范围 34.9--96.8 µV、峰峰值 61.9 µV、去均值 RMS 7.39 µV；
+  50 Hz 功率占比仍为 77.18%。
+- 两通道在 50 Hz 的相干性为 0.999325，且两路主频均为 50 Hz；这不是两个独立的
+  生理节律，而是仍存在共同工频耦合路径。
+- 与 19:06 复测相比，EEG 的 50 Hz 占比由 70.94% 降至 35.16%，EMG 由 99.95%
+  降至 77.18%，因此 NI 直连电脑、NTC 单独隔离的方向可以保留；但当前信号仍未达到
+  预注册的 `<20%` 连续质量门槛，不能开始正式一小时 baseline。
+- 下一步应保持 USB 拓扑不变，按单变量方式排查：先让笔记本断开交流充电器并记录
+  20 秒；若仍高，再仅将 EMG DAM50 `INPUT SELECT` 切到 `GND` 记录 10 秒。不要把动物
+  preparation GND 直接接到 NI AI GND/保护地；DAM50 输出 BNC 屏蔽层继续返回 NI AI GND。
+
+- Windows enumerated both devices normally: `USB-6001` was `OK`, and the NTC
+  FTDI serial interface was `COM4`, also `OK`. NTC settings were not changed;
+  optical output remained disabled.
+- The 20-second hardware run completed with 20,000 samples/channel. Neither
+  channel clipped. EEG was -454.9 to 232.1 uV (687.0 uV peak-to-peak,
+  104.4 uV demeaned RMS), with 35.16% line-band power. EMG was 34.9 to
+  96.8 uV (61.9 uV peak-to-peak, 7.39 uV RMS), with 77.18% line-band power.
+- Coherence at 50 Hz was 0.999325 and 50 Hz was dominant in both channels,
+  demonstrating a remaining shared mains-coupling path.
+- The direct-NI/isolated-NTC topology improved the earlier 19:06 result, so it
+  should be retained. It is not yet qualified for the one-hour baseline because
+  both channels remain above the predeclared 20% line-noise gate.
+- Keep the USB topology fixed and change one variable at a time: first repeat a
+  20-second acquisition with the laptop AC charger disconnected; if mains noise
+  persists, switch only the EMG DAM50 `INPUT SELECT` to `GND` for a 10-second
+  isolation run. Keep preparation ground at the DAM50 input/reference network,
+  not directly at NI AI GND or protective earth.
