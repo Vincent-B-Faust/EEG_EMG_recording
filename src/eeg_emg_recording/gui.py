@@ -20,6 +20,7 @@ from .preview import (
     robust_range,
 )
 from .recorder import Recorder
+from .gui_form_lock import FormLock
 
 
 def launch_gui(config_path: str | Path | None = None) -> int:
@@ -45,6 +46,7 @@ class RecorderGui:
         default = Path(__file__).resolve().parents[2] / "configs" / "ni_usb6001_dam50.yaml"
         self.config_path = Path(config_path).expanduser().resolve() if config_path else default
         self.config = load_config(self.config_path)
+        self._preview_config = self.config
         self.channel_rows: list[_ChannelRow] = []
         self.preview_queue: queue.Queue[PreviewUpdate] = queue.Queue(maxsize=3)
         self.result_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
@@ -56,6 +58,9 @@ class RecorderGui:
         self.latest_preview_values: np.ndarray | None = None
         self.latest_preview_update: PreviewUpdate | None = None
         self._close_when_done = False
+        self._run_active = False
+        self._form_lock = FormLock()
+        self._setup_roots = []
         self._build_style()
         self._build_variables()
         self._build_layout()
@@ -104,14 +109,17 @@ class RecorderGui:
         self.stop_button.pack(side="right", padx=(6, 0))
         self.start_button = ttk.Button(toolbar, text="Start recording", command=self._start, style="Primary.TButton")
         self.start_button.pack(side="right", padx=(6, 0))
-        ttk.Button(toolbar, text="Save config", command=self._save).pack(side="right", padx=(6, 0))
-        ttk.Button(toolbar, text="Open config", command=self._choose_config).pack(side="right", padx=(6, 0))
+        for label, command in (("Save config", self._save), ("Open config", self._choose_config)):
+            button = ttk.Button(toolbar, text=label, command=command)
+            button.pack(side="right", padx=(6, 0))
+            self._setup_roots.append(button)
 
         separator = ttk.Separator(root)
         separator.pack(fill="x")
         body = ttk.Panedwindow(root, orient="horizontal")
         body.pack(fill="both", expand=True, padx=12, pady=10)
         controls = ttk.Frame(body, width=460)
+        self._setup_roots.append(controls)
         preview = ttk.Frame(body)
         body.add(controls, weight=0)
         body.add(preview, weight=1)
@@ -250,6 +258,9 @@ class RecorderGui:
     def _choose_config(self) -> None:
         from tkinter import filedialog, messagebox
 
+        if self._run_active:
+            return
+
         value = filedialog.askopenfilename(
             title="Open EEG/EMG configuration",
             initialdir=str(self.config_path.parent),
@@ -258,16 +269,25 @@ class RecorderGui:
         if not value:
             return
         try:
-            self.config_path = Path(value).resolve()
-            self.config = load_config(self.config_path)
+            new_path = Path(value).resolve()
+            new_config = load_config(new_path)
+            self.config_path, self.config = new_path, new_config
+            self.latest_preview_values = None
+            self.latest_preview_update = None
+            self.preview_buffer = None
             self.path_var.set(str(self.config_path))
             self._load_into_fields(self.config)
+            self._draw_preview()
             self.status_var.set(f"Loaded {self.config_path.name}")
         except Exception as exc:
             messagebox.showerror("Config error", str(exc))
 
     def _save(self) -> bool:
         from tkinter import messagebox
+
+        if self._run_active:
+            self.status_var.set("Settings are locked until recording finishes / 记录结束前设置锁定")
+            return False
 
         try:
             config = self._config_from_fields()
@@ -329,7 +349,7 @@ class RecorderGui:
     def _start(self) -> None:
         from tkinter import messagebox
 
-        if self.worker is not None and self.worker.is_alive():
+        if self._run_active or self._close_when_done or (self.worker is not None and self.worker.is_alive()):
             return
         try:
             config = self._config_from_fields()
@@ -340,6 +360,7 @@ class RecorderGui:
             messagebox.showerror("Cannot start", str(exc))
             return
         self.config = config
+        self._preview_config = config
         self.stop_event = threading.Event()
         self.preview_buffer = RollingSignalBuffer(
             len(config.acquisition.active_channels),
@@ -348,11 +369,23 @@ class RecorderGui:
         )
         self.latest_preview_values = None
         self.latest_preview_update = None
+        self._draw_preview()
+        while not self.preview_queue.empty():
+            try:
+                self.preview_queue.get_nowait()
+            except queue.Empty:
+                break
+        self._run_active = True
+        self._form_lock.acquire(self._setup_roots)
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.status_var.set("Starting recorder...")
         self.worker = threading.Thread(target=self._record_worker, args=(config,), daemon=False)
-        self.worker.start()
+        try:
+            self.worker.start()
+        except Exception as exc:
+            self._recording_finished()
+            messagebox.showerror("Cannot start worker", str(exc))
 
     def _record_worker(self, config: Any) -> None:
         try:
@@ -389,10 +422,12 @@ class RecorderGui:
             self.stop_button.configure(state="disabled")
 
     def _poll_queues(self) -> None:
+        preview_changed = False
         try:
             while True:
                 update = self.preview_queue.get_nowait()
                 self.latest_preview_update = update
+                preview_changed = True
                 if self.preview_buffer is not None:
                     self.latest_preview_values = self.preview_buffer.append(update.block)
         except queue.Empty:
@@ -401,7 +436,8 @@ class RecorderGui:
             while True:
                 kind, payload = self.result_queue.get_nowait()
                 if kind == "started":
-                    self.status_var.set(f"Recording: {payload}")
+                    if not (self.stop_event and self.stop_event.is_set()):
+                        self.status_var.set(f"Recording: {payload}")
                 elif kind == "result":
                     self.status_var.set(
                         f"{payload.status}: {payload.samples_written:,} samples -> {payload.session_dir}"
@@ -415,13 +451,20 @@ class RecorderGui:
                     messagebox.showerror("Recording failed", str(payload))
         except queue.Empty:
             pass
-        self._draw_preview()
+        if self._run_active and self.worker is not None and not self.worker.is_alive():
+            self._recording_finished()
+        if preview_changed:
+            self._draw_preview()
         if self._close_when_done and not (self.worker and self.worker.is_alive()):
             self.root.destroy()
             return
         self.root.after(50, self._poll_queues)
 
     def _recording_finished(self) -> None:
+        if self.worker is not None and self.worker.is_alive():
+            return  # Result may reach Tk before the worker's finally block exits.
+        self._run_active = False
+        self._form_lock.release()
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
         self.stop_event = None
@@ -454,12 +497,12 @@ class RecorderGui:
             y0 = top + index * (row_height + gap)
             y1 = min(height - footer, y0 + row_height)
             raw = np.asarray(values[index], dtype=float)
-            display, units = display_values(raw, channel, update.sample_rate_hz, self.config)
+            display, units = display_values(raw, channel, update.sample_rate_hz, self._preview_config)
             filtered = filter_for_preview(
                 display,
                 channel.role,
                 update.sample_rate_hz,
-                self.config,
+                self._preview_config,
             )
             low, high = robust_range(filtered, auto_scale=True)
             color = channel.display_color

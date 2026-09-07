@@ -1,5 +1,7 @@
 # EEG-EMG Recording
 
+[GUI operation workflow / 界面操作说明](docs/UI_WORKFLOW.md) — setup locks and stop/finalization behavior / 设置锁定与停止收尾。
+
 [中文](#中文说明) · [English](#english-guide)
 
 <a id="中文说明"></a>
