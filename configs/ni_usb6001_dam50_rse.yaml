@@ -63,11 +63,11 @@ acquisition:
     input_max_v: null
 preview:
   enabled: true
-  history_s: 10.0
+  history_s: 5.0
   refresh_hz: 10
   display_units: input_uv
   auto_scale: true
-  notch_hz: null
+  notch_hz: 50.0
   notch_q: 30
   filter_display_only: true
   eeg_bandpass_hz:

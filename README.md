@@ -1,5 +1,7 @@
 # EEG-EMG Recording
 
+[GUI operation workflow / 界面操作说明](docs/UI_WORKFLOW.md) — setup locks and stop/finalization behavior / 设置锁定与停止收尾。
+
 [中文](#中文说明) · [English](#english-guide)
 
 <a id="中文说明"></a>
@@ -498,3 +500,20 @@ Run the full regression suite with:
 ```cmd
 environment_bootstrap.cmd run -- -m pytest -q
 ```
+
+
+### Live preview: fixed Y range and AC/DC
+
+Above the live plot, select AC or DC, optionally enable **Fixed Y** and enter
+**Min** / **Max**, then click **Apply**. These controls remain available during
+recording. Limits use the selected Preview units (input uV or output V), apply
+to all channels, and clip traces outside the display range. Disable Fixed Y
+and Apply to return to automatic scaling. Save config while idle to persist.
+
+AC removes the current preview window mean and uses the existing display-only
+notch/bandpass filters when enabled. DC bypasses those filters and preserves
+the measured offset. This is a software display choice; it does not change
+physical amplifier coupling or stored raw DAQ voltages.
+
+YAML preview options: `coupling: AC` (or `DC`) and `y_range: [-500, 500]`
+(`null` for automatic scaling). Existing configs default to AC and auto range.

@@ -68,6 +68,8 @@ def parse_config(raw: dict[str, Any], *, config_path: str | Path) -> RecordingCo
         refresh_hz=float(preview_raw.get("refresh_hz", 10.0)),
         display_units=str(preview_raw.get("display_units", "input_uv")).strip().lower(),
         auto_scale=bool(preview_raw.get("auto_scale", True)),
+        coupling=str(preview_raw.get("coupling", "AC")).strip().upper(),
+        y_range=_preview_y_range(preview_raw.get("y_range")),
         notch_hz=_optional_float(preview_raw.get("notch_hz", 50.0)),
         notch_q=float(preview_raw.get("notch_q", 30.0)),
         filter_display_only=bool(preview_raw.get("filter_display_only", True)),
@@ -233,6 +235,12 @@ def validate_config(config: RecordingConfig) -> None:
             raise ValueError(
                 "sync.analog_start_match_channel must name one enabled channel with role SYNC"
             )
+    if config.preview.coupling not in {"AC", "DC"}:
+        raise ValueError("preview.coupling must be AC or DC")
+    if config.preview.y_range is not None:
+        low, high = config.preview.y_range
+        if not (isfinite(low) and isfinite(high) and low < high):
+            raise ValueError("preview.y_range must contain finite minimum < maximum")
     if config.preview.display_units not in {"output_v", "input_uv"}:
         raise ValueError("preview.display_units must be output_v or input_uv")
 
@@ -402,3 +410,11 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, (list, tuple)):
         return [str(item).strip() for item in value if str(item).strip()]
     return [str(value).strip()]
+
+
+def _preview_y_range(value: Any) -> tuple[float, float] | None:
+    if value is None:
+        return None
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError("preview.y_range must contain [minimum, maximum] or null")
+    return float(value[0]), float(value[1])

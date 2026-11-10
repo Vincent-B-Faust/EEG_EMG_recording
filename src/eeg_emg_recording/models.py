@@ -113,6 +113,8 @@ class PreviewConfig:
     refresh_hz: float = 10.0
     display_units: str = "input_uv"
     auto_scale: bool = True
+    coupling: str = "AC"
+    y_range: tuple[float, float] | None = None
     notch_hz: float | None = 50.0
     notch_q: float = 30.0
     filter_display_only: bool = True

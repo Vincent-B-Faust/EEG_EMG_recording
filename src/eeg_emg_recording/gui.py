@@ -17,9 +17,10 @@ from .preview import (
     decimate_for_width,
     display_values,
     filter_for_preview,
-    robust_range,
+    preview_range,
 )
 from .recorder import Recorder
+from .gui_form_lock import FormLock
 
 
 def launch_gui(config_path: str | Path | None = None) -> int:
@@ -45,6 +46,7 @@ class RecorderGui:
         default = Path(__file__).resolve().parents[2] / "configs" / "ni_usb6001_dam50.yaml"
         self.config_path = Path(config_path).expanduser().resolve() if config_path else default
         self.config = load_config(self.config_path)
+        self._preview_config = self.config
         self.channel_rows: list[_ChannelRow] = []
         self.preview_queue: queue.Queue[PreviewUpdate] = queue.Queue(maxsize=3)
         self.result_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
@@ -56,6 +58,9 @@ class RecorderGui:
         self.latest_preview_values: np.ndarray | None = None
         self.latest_preview_update: PreviewUpdate | None = None
         self._close_when_done = False
+        self._run_active = False
+        self._form_lock = FormLock()
+        self._setup_roots = []
         self._build_style()
         self._build_variables()
         self._build_layout()
@@ -90,6 +95,10 @@ class RecorderGui:
         self.units_var = tk.StringVar()
         self.history_var = tk.StringVar()
         self.notch_var = tk.StringVar()
+        self.coupling_var = tk.StringVar(value="AC")
+        self.fixed_y_var = tk.BooleanVar(value=False)
+        self.y_min_var = tk.StringVar(value="-500")
+        self.y_max_var = tk.StringVar(value="500")
         self.status_var = tk.StringVar(value="Ready")
         self.hardware_var = tk.StringVar(value="")
 
@@ -104,14 +113,17 @@ class RecorderGui:
         self.stop_button.pack(side="right", padx=(6, 0))
         self.start_button = ttk.Button(toolbar, text="Start recording", command=self._start, style="Primary.TButton")
         self.start_button.pack(side="right", padx=(6, 0))
-        ttk.Button(toolbar, text="Save config", command=self._save).pack(side="right", padx=(6, 0))
-        ttk.Button(toolbar, text="Open config", command=self._choose_config).pack(side="right", padx=(6, 0))
+        for label, command in (("Save config", self._save), ("Open config", self._choose_config)):
+            button = ttk.Button(toolbar, text=label, command=command)
+            button.pack(side="right", padx=(6, 0))
+            self._setup_roots.append(button)
 
         separator = ttk.Separator(root)
         separator.pack(fill="x")
         body = ttk.Panedwindow(root, orient="horizontal")
         body.pack(fill="both", expand=True, padx=12, pady=10)
         controls = ttk.Frame(body, width=460)
+        self._setup_roots.append(controls)
         preview = ttk.Frame(body)
         body.add(controls, weight=0)
         body.add(preview, weight=1)
@@ -194,6 +206,18 @@ class RecorderGui:
         ttk.Label(header, text="Live preview", font=("Segoe UI Semibold", 11)).pack(side="left")
         self.preview_status = ttk.Label(header, text="")
         self.preview_status.pack(side="right")
+        options = ttk.Frame(parent)
+        options.pack(fill="x", pady=(0, 6))
+        ttk.Label(options, text="Display").pack(side="left")
+        ttk.Combobox(options, textvariable=self.coupling_var, values=("AC", "DC"),
+                     state="readonly", width=4).pack(side="left", padx=5)
+        ttk.Checkbutton(options, text="Fixed Y", variable=self.fixed_y_var).pack(side="left", padx=5)
+        ttk.Label(options, text="Min").pack(side="left")
+        ttk.Entry(options, textvariable=self.y_min_var, width=9).pack(side="left", padx=4)
+        ttk.Label(options, text="Max").pack(side="left")
+        ttk.Entry(options, textvariable=self.y_max_var, width=9).pack(side="left", padx=4)
+        ttk.Button(options, text="Apply", command=self._apply_preview_settings).pack(side="left", padx=5)
+        ttk.Label(parent, text="AC: remove DC + display filters | DC: preserve offset | Y: current preview units").pack(anchor="w", pady=(0, 5))
         self.preview_canvas = self.tk.Canvas(
             parent,
             background="#FAFBFC",
@@ -215,6 +239,12 @@ class RecorderGui:
         self.duration_var.set("" if acquisition.duration_s is None else f"{acquisition.duration_s:g}")
         self.terminal_var.set(acquisition.terminal_config)
         self.range_var.set(f"{acquisition.input_min_v:g}, {acquisition.input_max_v:g}")
+        self.coupling_var.set(config.preview.coupling)
+        self.fixed_y_var.set(config.preview.y_range is not None)
+        limits = config.preview.y_range or (-500.0, 500.0)
+        self.y_min_var.set(f"{limits[0]:g}")
+        self.y_max_var.set(f"{limits[1]:g}")
+        self._preview_config = config
         self.units_var.set(config.preview.display_units)
         self.history_var.set(f"{config.preview.history_s:g}")
         self.notch_var.set("" if config.preview.notch_hz is None else f"{config.preview.notch_hz:g}")
@@ -250,6 +280,9 @@ class RecorderGui:
     def _choose_config(self) -> None:
         from tkinter import filedialog, messagebox
 
+        if self._run_active:
+            return
+
         value = filedialog.askopenfilename(
             title="Open EEG/EMG configuration",
             initialdir=str(self.config_path.parent),
@@ -258,16 +291,25 @@ class RecorderGui:
         if not value:
             return
         try:
-            self.config_path = Path(value).resolve()
-            self.config = load_config(self.config_path)
+            new_path = Path(value).resolve()
+            new_config = load_config(new_path)
+            self.config_path, self.config = new_path, new_config
+            self.latest_preview_values = None
+            self.latest_preview_update = None
+            self.preview_buffer = None
             self.path_var.set(str(self.config_path))
             self._load_into_fields(self.config)
+            self._draw_preview()
             self.status_var.set(f"Loaded {self.config_path.name}")
         except Exception as exc:
             messagebox.showerror("Config error", str(exc))
 
     def _save(self) -> bool:
         from tkinter import messagebox
+
+        if self._run_active:
+            self.status_var.set("Settings are locked until recording finishes / 记录结束前设置锁定")
+            return False
 
         try:
             config = self._config_from_fields()
@@ -301,12 +343,44 @@ class RecorderGui:
             raise ValueError("Input range must contain two values, for example -10, 10")
         acquisition["input_range_v"] = range_parts
         acquisition["channels"] = [row.to_dict() for row in self.channel_rows]
+        coupling, limits = self._read_preview_settings()
+        preview["coupling"] = coupling
+        preview["y_range"] = list(limits) if limits is not None else None
         preview["enabled"] = True
         preview["display_units"] = self.units_var.get().strip()
         preview["history_s"] = float(self.history_var.get())
         notch = self.notch_var.get().strip()
         preview["notch_hz"] = float(notch) if notch else None
         return config_from_gui_dict(raw, self.config_path)
+
+    def _read_preview_settings(self) -> tuple[str, tuple[float, float] | None]:
+        coupling = self.coupling_var.get().strip().upper()
+        if coupling not in {"AC", "DC"}:
+            raise ValueError("Display coupling must be AC or DC")
+        limits = None
+        if self.fixed_y_var.get():
+            low = _gui_float(self.y_min_var.get(), "Y minimum")
+            high = _gui_float(self.y_max_var.get(), "Y maximum")
+            if low >= high:
+                raise ValueError("Y minimum must be below maximum")
+            limits = (low, high)
+        return coupling, limits
+
+    def _apply_preview_settings(self) -> None:
+        from tkinter import messagebox
+
+        try:
+            coupling, limits = self._read_preview_settings()
+        except ValueError as exc:
+            messagebox.showerror("Preview settings", str(exc))
+            return
+        # Keep live display changes separate from the recorder's configuration.
+        config = deepcopy(self._preview_config)
+        config.preview.coupling = coupling
+        config.preview.y_range = limits
+        self._preview_config = config
+        self._draw_preview()
+        self.status_var.set(f"Preview: {coupling}, Y {limits if limits is not None else 'auto'}")
 
     def _refresh_devices(self, *, silent: bool = False) -> None:
         from tkinter import messagebox
@@ -329,7 +403,7 @@ class RecorderGui:
     def _start(self) -> None:
         from tkinter import messagebox
 
-        if self.worker is not None and self.worker.is_alive():
+        if self._run_active or self._close_when_done or (self.worker is not None and self.worker.is_alive()):
             return
         try:
             config = self._config_from_fields()
@@ -340,6 +414,7 @@ class RecorderGui:
             messagebox.showerror("Cannot start", str(exc))
             return
         self.config = config
+        self._preview_config = config
         self.stop_event = threading.Event()
         self.preview_buffer = RollingSignalBuffer(
             len(config.acquisition.active_channels),
@@ -348,11 +423,23 @@ class RecorderGui:
         )
         self.latest_preview_values = None
         self.latest_preview_update = None
+        self._draw_preview()
+        while not self.preview_queue.empty():
+            try:
+                self.preview_queue.get_nowait()
+            except queue.Empty:
+                break
+        self._run_active = True
+        self._form_lock.acquire(self._setup_roots)
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.status_var.set("Starting recorder...")
         self.worker = threading.Thread(target=self._record_worker, args=(config,), daemon=False)
-        self.worker.start()
+        try:
+            self.worker.start()
+        except Exception as exc:
+            self._recording_finished()
+            messagebox.showerror("Cannot start worker", str(exc))
 
     def _record_worker(self, config: Any) -> None:
         try:
@@ -389,10 +476,12 @@ class RecorderGui:
             self.stop_button.configure(state="disabled")
 
     def _poll_queues(self) -> None:
+        preview_changed = False
         try:
             while True:
                 update = self.preview_queue.get_nowait()
                 self.latest_preview_update = update
+                preview_changed = True
                 if self.preview_buffer is not None:
                     self.latest_preview_values = self.preview_buffer.append(update.block)
         except queue.Empty:
@@ -401,7 +490,8 @@ class RecorderGui:
             while True:
                 kind, payload = self.result_queue.get_nowait()
                 if kind == "started":
-                    self.status_var.set(f"Recording: {payload}")
+                    if not (self.stop_event and self.stop_event.is_set()):
+                        self.status_var.set(f"Recording: {payload}")
                 elif kind == "result":
                     self.status_var.set(
                         f"{payload.status}: {payload.samples_written:,} samples -> {payload.session_dir}"
@@ -415,13 +505,20 @@ class RecorderGui:
                     messagebox.showerror("Recording failed", str(payload))
         except queue.Empty:
             pass
-        self._draw_preview()
+        if self._run_active and self.worker is not None and not self.worker.is_alive():
+            self._recording_finished()
+        if preview_changed:
+            self._draw_preview()
         if self._close_when_done and not (self.worker and self.worker.is_alive()):
             self.root.destroy()
             return
         self.root.after(50, self._poll_queues)
 
     def _recording_finished(self) -> None:
+        if self.worker is not None and self.worker.is_alive():
+            return  # Result may reach Tk before the worker's finally block exits.
+        self._run_active = False
+        self._form_lock.release()
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
         self.stop_event = None
@@ -445,7 +542,7 @@ class RecorderGui:
         channels = list(update.channels)
         count = max(1, len(channels))
         left = 155
-        right = 18
+        right = 108
         top = 14
         footer = 30
         gap = 8
@@ -454,18 +551,28 @@ class RecorderGui:
             y0 = top + index * (row_height + gap)
             y1 = min(height - footer, y0 + row_height)
             raw = np.asarray(values[index], dtype=float)
-            display, units = display_values(raw, channel, update.sample_rate_hz, self.config)
+            display, units = display_values(raw, channel, update.sample_rate_hz, self._preview_config)
             filtered = filter_for_preview(
                 display,
                 channel.role,
                 update.sample_rate_hz,
-                self.config,
+                self._preview_config,
             )
-            low, high = robust_range(filtered, auto_scale=True)
+            low, high = preview_range(filtered, self._preview_config)
             color = channel.display_color
             canvas.create_rectangle(left, y0, width - right, y1, outline="#D5DCE2")
-            zero_y = _tk_value_to_y(0.0, low, high, y0 + 5, y1 - 5)
-            canvas.create_line(left, zero_y, width - right, zero_y, fill="#E7EBEE")
+            tick_count = max(2, min(5, int((y1 - y0 - 10) / 26) + 1))
+            axis_x = width - right
+            axis_unit = "uV" if self._preview_config.preview.display_units == "input_uv" else "V"
+            for value in np.linspace(low, high, tick_count):
+                tick_y = _tk_value_to_y(float(value), low, high, y0 + 5, y1 - 5)
+                canvas.create_line(left, tick_y, axis_x, tick_y, fill="#E7EBEE", dash=(2, 4))
+                canvas.create_line(axis_x, tick_y, axis_x + 5, tick_y, fill="#626A70")
+                canvas.create_text(axis_x + 9, tick_y, text=f"{value:.4g} {axis_unit}",
+                                   anchor="w", fill="#52585E", font=("Segoe UI", 8))
+            if low <= 0 <= high:
+                zero_y = _tk_value_to_y(0.0, low, high, y0 + 5, y1 - 5)
+                canvas.create_line(left, zero_y, axis_x, zero_y, fill="#B9C4CE")
             trace = decimate_for_width(filtered, max(20, width - left - right))
             if trace.size >= 2:
                 points: list[float] = []

@@ -90,7 +90,7 @@ def render_preview_canvas(
     top = 24
     footer = 34
     left = 190
-    right = 18
+    right = 110
     gap = 8
     count = max(1, len(channels))
     row_height = max(52, (height - top - footer - gap * (count - 1)) // count)
@@ -101,11 +101,21 @@ def render_preview_canvas(
         raw = np.asarray(raw_values[index], dtype=np.float64)
         display, units = display_values(raw, channel, sample_rate_hz, config)
         filtered = filter_for_preview(display, channel.role, sample_rate_hz, config)
-        low, high = robust_range(filtered, auto_scale=config.preview.auto_scale)
+        low, high = preview_range(filtered, config)
         color = hex_to_bgr(channel.display_color)
         cv2.rectangle(canvas, (left, y0), (width - right, y1), (213, 219, 224), 1)
-        zero_y = _value_to_y(0.0, low, high, y0 + 5, y1 - 5)
-        cv2.line(canvas, (left, zero_y), (width - right, zero_y), (226, 230, 233), 1, cv2.LINE_AA)
+        axis_x = width - right
+        axis_unit = "uV" if config.preview.display_units == "input_uv" else "V"
+        tick_count = max(2, min(5, int((y1 - y0 - 10) / 26) + 1))
+        for value in np.linspace(low, high, tick_count):
+            tick_y = _value_to_y(float(value), low, high, y0 + 5, y1 - 5)
+            cv2.line(canvas, (left, tick_y), (axis_x, tick_y), (230, 234, 237), 1)
+            cv2.line(canvas, (axis_x, tick_y), (axis_x + 5, tick_y), (112, 120, 126), 1)
+            cv2.putText(canvas, f"{value:.4g} {axis_unit}", (axis_x + 9, tick_y + 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.36, (82, 88, 94), 1, cv2.LINE_AA)
+        if low <= 0 <= high:
+            zero_y = _value_to_y(0.0, low, high, y0 + 5, y1 - 5)
+            cv2.line(canvas, (left, zero_y), (axis_x, zero_y), (190, 200, 209), 1)
         if filtered.size >= 2:
             decimated = decimate_for_width(filtered, plot_width)
             xs = np.linspace(left + 1, width - right - 1, decimated.size).astype(np.int32)
@@ -135,26 +145,6 @@ def render_preview_canvas(
             cv2.FONT_HERSHEY_SIMPLEX,
             0.42,
             (82, 88, 94),
-            1,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
-            canvas,
-            f"{high:+.2g}",
-            (width - right - 58, y0 + 16),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.36,
-            (116, 121, 126),
-            1,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
-            canvas,
-            f"{low:+.2g}",
-            (width - right - 58, y1 - 5),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.36,
-            (116, 121, 126),
             1,
             cv2.LINE_AA,
         )
@@ -190,6 +180,11 @@ def filter_for_preview(
     config: RecordingConfig,
 ) -> np.ndarray:
     signal = np.asarray(values, dtype=np.float64)
+    if config.preview.coupling == "DC":
+        return signal
+    # AC removes the window mean even before enough samples exist for filtering.
+    if signal.size:
+        signal = signal - np.mean(signal)
     if not config.preview.filter_display_only or signal.size < max(30, int(sample_rate_hz * 0.5)):
         return signal
     if find_spec("scipy") is None:
@@ -219,6 +214,12 @@ def filter_for_preview(
         return np.asarray(filtered, dtype=np.float64)
     except Exception:
         return signal
+
+
+def preview_range(values: np.ndarray, config: RecordingConfig) -> tuple[float, float]:
+    if config.preview.y_range is not None:
+        return config.preview.y_range
+    return robust_range(values, auto_scale=config.preview.auto_scale)
 
 
 def robust_range(values: np.ndarray, *, auto_scale: bool) -> tuple[float, float]:

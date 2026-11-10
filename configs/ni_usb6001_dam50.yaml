@@ -1,109 +1,75 @@
-# NI USB-6001 + WPI DAM50 default configuration.
-#
-# One DAM50 has one BNC output and therefore records one logical channel.
-# The two enabled channels below require two DAM50 amplifiers:
-#   DAM50 #1 -> Mouse01 EEG -> USB-6001 ai0 (DIFF pair ai0/ai4)
-#   DAM50 #2 -> Mouse01 EMG -> USB-6001 ai1 (DIFF pair ai1/ai5)
-#
-# In USB-6001 DIFF mode, configure only ai0..ai3. NI-DAQmx pairs these
-# automatically with ai4..ai7. The aggregate AI limit is 20 kS/s:
-#   enabled_channel_count * sample_rate_hz <= 20000
 project:
-  output_root: ../runs
-  session_name: sleep_recording
+  output_root: D:\Data\LiuZY\Data\Tbrain&EEG
+  session_name: Opn5CreERT2
   mouse_ids:
-    - Mouse01
-
+  - O5C1066
 acquisition:
   backend: nidaqmx
-  device: auto
-  sample_rate_hz: 1000
+  device: Dev1
+  sample_rate_hz: 500.0
   block_duration_s: 0.1
   duration_s: null
   terminal_config: DIFF
-  input_range_v: [-10.0, 10.0]
+  input_range_v:
+  - -10.0
+  - 10.0
   read_timeout_s: 10.0
   start_trigger:
     enabled: false
-    # {device} expands to the NI-DAQmx name selected by acquisition.device.
     source: /{device}/PFI0
     edge: rising
   channels:
-    - name: Mouse01_EEG
-      mouse_id: Mouse01
-      role: EEG
-      physical_channel: ai0
-      enabled: true
-      # Must match the physical DAM50 GAIN switch.
-      amplifier_gain: 1000
-      amplifier_model: WPI DAM50
-      amplifier_serial: ""
-      amplifier_mode: AC
-      hardware_filter_enabled: true
-      hardware_highpass_hz: 0.1
-      hardware_lowpass_hz: 1000
-      # DAM50 itself has no configured notch in this example.
-      hardware_notch_enabled: false
-      hardware_notch_hz: null
-      # Mark true only after checking the physical switches/knobs.
-      amplifier_settings_verified: false
-      amplifier_notes: ""
-      # Optional per-channel DAQ overrides; null inherits acquisition defaults.
-      terminal_config: null
-      input_min_v: null
-      input_max_v: null
-      color: "#20A4F3"
-    - name: Mouse01_EMG
-      mouse_id: Mouse01
-      role: EMG
-      physical_channel: ai1
-      enabled: true
-      # Must match the physical DAM50 GAIN switch.
-      amplifier_gain: 1000
-      amplifier_model: WPI DAM50
-      amplifier_serial: ""
-      amplifier_mode: AC
-      hardware_filter_enabled: true
-      hardware_highpass_hz: 10
-      hardware_lowpass_hz: 1000
-      hardware_notch_enabled: false
-      hardware_notch_hz: null
-      amplifier_settings_verified: false
-      amplifier_notes: ""
-      terminal_config: null
-      input_min_v: null
-      input_max_v: null
-      color: "#F26430"
-
+  - name: O5C1066_EEG
+    physical_channel: ai0
+    role: EEG
+    mouse_id: Mouse01
+    enabled: true
+    amplifier_gain: 1000.0
+    amplifier_model: WPI DAM50
+    amplifier_serial: ''
+    amplifier_mode: AC
+    hardware_highpass_hz: 0.1
+    hardware_lowpass_hz: 1000.0
+    hardware_filter_enabled: true
+    hardware_notch_enabled: false
+    hardware_notch_hz: null
+    amplifier_settings_verified: false
+    amplifier_notes: ''
+    color: '#20A4F3'
+    terminal_config: null
+    input_min_v: null
+    input_max_v: null
 preview:
   enabled: true
-  history_s: 10
+  history_s: 20.0
   refresh_hz: 10
-  # Raw HDF5 data always remains DAM50 output volts.
-  # input_uv displays a derived value: output_v * 1e6 / amplifier_gain.
-  display_units: input_uv
+  display_units: output_v
   auto_scale: true
-  notch_hz: 50
+  notch_hz: 50.0
   notch_q: 30
   filter_display_only: true
-  eeg_bandpass_hz: [0.5, 45]
-  emg_bandpass_hz: [10, 200]
+  eeg_bandpass_hz:
+  - 0.5
+  - 45
+  emg_bandpass_hz:
+  - 10
+  - 200
   window_width: 1200
   window_height: 720
-
+  coupling: AC
+  y_range:
+  - -2.0
+  - 2.0
 storage:
   flush_interval_s: 1.0
   hdf5_compression: lzf
   csv_enabled: false
   csv_decimation: 10
-
 sync:
   control_dir: null
   parent_session_dir: null
   analog_threshold_v: 2.5
   analog_edge: rising
-  # Enable only when the SYNC input receives a dedicated pulse tied to thermal start.
   analog_start_match_enabled: false
-  # Required when enabled; must name one enabled channel whose role is SYNC.
-  analog_start_match_channel: ""
+  analog_start_match_channel: ''
   analog_start_match_window_s: 1.0
